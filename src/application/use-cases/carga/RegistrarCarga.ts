@@ -15,13 +15,16 @@ export class RegistrarCarga {
   async executar(dados: CargaQuimicaProps): Promise<CargaQuimica> {
     const produto = await this.produtoRepository.buscarPorId(dados.produtoQuimicoId);
     if (!produto) {
-      throw new DomainError("Produto químico não encontrado.");
+      throw new DomainError("PRODUTO_NAO_ENCONTRADO", "Produto químico não encontrado.");
     }
     if (!produto.estaAtivo()) {
-      throw new DomainError("Não é possível registrar carga com produto químico inativo.");
+      throw new DomainError(
+        "PRODUTO_INATIVO",
+        "Não é possível registrar carga com produto químico inativo."
+      );
     }
 
-    const carga = new CargaQuimica(dados);
+    const carga = CargaQuimica.registrar(dados, produto.estaAtivo());
     return this.cargaRepository.criar(carga);
   }
 }

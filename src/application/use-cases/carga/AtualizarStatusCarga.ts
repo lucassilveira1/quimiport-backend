@@ -2,21 +2,19 @@
 // Usa a máquina de estados em src/domain/value-objects/StatusCarga.ts
 
 import { CargaRepository } from "../../repositories/CargaRepository";
-import { StatusCargaType, podeTransicionar } from "../../../domain/value-objects/StatusCarga";
+import { CargaQuimica } from "../../../domain/entities/CargaQuimica";
+import { StatusCargaType } from "../../../domain/value-objects/StatusCarga";
 import { DomainError } from "../../../domain/errors/DomainError";
 
 export class AtualizarStatusCarga {
   constructor(private readonly cargaRepository: CargaRepository) {}
 
-  async executar(id: string, novoStatus: StatusCargaType) {
+  async executar(id: string, novoStatus: StatusCargaType): Promise<CargaQuimica> {
     const carga = await this.cargaRepository.buscarPorId(id);
     if (!carga) {
-      throw new DomainError("Carga química não encontrada.");
+      throw new DomainError("CARGA_NAO_ENCONTRADA", "Carga química não encontrada.");
     }
-    if (!podeTransicionar(carga.status, novoStatus)) {
-      throw new DomainError(`Transição de status inválida: ${carga.status} -> ${novoStatus}`);
-    }
-
+    carga.transicionarPara(novoStatus);
     return this.cargaRepository.atualizarStatus(id, novoStatus);
   }
 }

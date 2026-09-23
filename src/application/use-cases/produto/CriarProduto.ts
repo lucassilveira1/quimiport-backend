@@ -7,7 +7,7 @@ export class CriarProduto {
   constructor(private readonly produtoRepository: ProdutoRepository) {}
 
   async executar(dados: ProdutoQuimicoProps): Promise<ProdutoQuimico> {
-    const produto = new ProdutoQuimico(dados);
+    const produto = ProdutoQuimico.criar(dados);
     return this.produtoRepository.criar(produto);
   }
 }
