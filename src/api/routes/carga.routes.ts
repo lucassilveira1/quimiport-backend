@@ -1,16 +1,22 @@
 // Rotas de cargas químicas. Responsável: Vitor
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+import { CargaController } from "../controllers/CargaController";
+import { atualizarStatusSchema, bloquearCargaSchema, listarCargasQuerySchema, registrarCargaSchema } from "../dtos/carga.dto";
+import { idParamsSchema } from "../dtos/common.dto";
+import { asyncHandler } from "../middlewares/asyncHandler";
+import { validate } from "../middlewares/validate";
 
-const router = Router();
+export function cargaRoutes(controller: CargaController): Router {
+  const router = Router();
+  const params = idParamsSchema;
 
-// import { CargaController } from "../controllers/CargaController";
+  router.post("/", validate({ body: registrarCargaSchema }), asyncHandler(controller.registrar));
+  router.get("/", validate({ query: listarCargasQuerySchema }), asyncHandler(controller.listar));
+  router.get("/:id", validate({ params }), asyncHandler(controller.buscarPorId));
+  router.patch("/:id/status", validate({ params, body: atualizarStatusSchema }), asyncHandler(controller.atualizarStatus));
+  router.patch("/:id/bloquear", validate({ params, body: bloquearCargaSchema }), asyncHandler(controller.bloquear));
+  router.patch("/:id/liberar", validate({ params }), asyncHandler(controller.liberar));
+  router.patch("/:id/cancelar", validate({ params }), asyncHandler(controller.cancelar));
 
-router.post("/", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.get("/", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.get("/:id", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.patch("/:id/status", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.patch("/:id/bloquear", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.patch("/:id/liberar", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-router.patch("/:id/cancelar", (req: Request, res: Response) => res.status(501).json({ message: "Não implementado." }));
-
-export default router;
+  return router;
+}
