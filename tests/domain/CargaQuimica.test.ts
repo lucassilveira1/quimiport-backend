@@ -75,3 +75,21 @@ describe('CargaQuimica', () => {
     expect(() => carga.transicionarPara('finalizada')).toThrow(DomainError);
   });
 });
+
+describe('CargaQuimica - regressao: liberar sem documentacao', () => {
+  const propsValidas = {
+    codigoCarga: 'CARGA-001',
+    produtoQuimicoId: 'produto-123',
+    quantidade: 1000,
+    unidadeMedida: UnidadeMedida.KG,
+    responsavelTecnico: 'Eng. Joao Silva',
+    documentacaoObrigatoria: false,
+  };
+
+  it('nao permite liberar pelo transicionarPara generico sem documentacao', () => {
+    const carga = CargaQuimica.registrar(propsValidas, true);
+    carga.transicionarPara('em_analise');
+    carga.transicionarPara('em_inspecao');
+    expect(() => carga.transicionarPara('liberada')).toThrow(DomainError);
+  });
+});

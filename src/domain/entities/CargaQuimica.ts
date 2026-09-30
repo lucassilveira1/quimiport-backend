@@ -157,18 +157,18 @@ export class CargaQuimica {
         `Não é possível transicionar a carga de "${this._status}" para "${novoStatus}".`
       );
     }
+    if (novoStatus === 'liberada' && !this._documentacaoObrigatoria) {
+      throw new DomainError(
+        'DOCUMENTACAO_INCOMPLETA',
+        'Carga não pode ser liberada sem toda a documentação obrigatória.'
+      );
+    }
     this._status = novoStatus;
     this._updatedAt = new Date();
   }
 
   /** Libera a carga para movimentação. Exige documentação obrigatória completa. */
   liberar(): void {
-    if (!this._documentacaoObrigatoria) {
-      throw new DomainError(
-        'DOCUMENTACAO_INCOMPLETA',
-        'Carga não pode ser liberada sem toda a documentação obrigatória.'
-      );
-    }
     this.transicionarPara('liberada');
   }
 
