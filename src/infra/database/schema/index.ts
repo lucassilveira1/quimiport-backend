@@ -5,3 +5,4 @@ export * from "./produtoCargaQuimica.js";
 export * from "./produtoQuimico.js";
 export * from "./responsavelTecnico.js";
 export * from "./grupoCompatibilidade.js";
+export * from "./produtoGrupoCompatibilidade.js";

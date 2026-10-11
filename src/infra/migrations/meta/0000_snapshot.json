@@ -1,5 +1,5 @@
 {
-  "id": "b981a94a-a954-4ddb-b466-b2ba44c98439",
+  "id": "9e77c12f-d7e9-4c84-8945-a350f13f8bb3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -333,12 +333,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "grupo_compatibilidade_id": {
-          "name": "grupo_compatibilidade_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "nome": {
           "name": "nome",
           "type": "text",
@@ -386,19 +380,6 @@
           "tableTo": "classe_risco",
           "columnsFrom": [
             "classe_risco_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "fk_produto_quimico_grupo_compat": {
-          "name": "fk_produto_quimico_grupo_compat",
-          "tableFrom": "produto_quimico",
-          "tableTo": "grupo_compatibilidade",
-          "columnsFrom": [
-            "grupo_compatibilidade_id"
           ],
           "columnsTo": [
             "id"
@@ -523,6 +504,79 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.produto_grupo_compatibilidade": {
+      "name": "produto_grupo_compatibilidade",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "produto_id": {
+          "name": "produto_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grupo_compatibilidade_id": {
+          "name": "grupo_compatibilidade_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_produto_grupo_produto": {
+          "name": "fk_produto_grupo_produto",
+          "tableFrom": "produto_grupo_compatibilidade",
+          "tableTo": "produto_quimico",
+          "columnsFrom": [
+            "produto_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fk_produto_grupo_grupo": {
+          "name": "fk_produto_grupo_grupo",
+          "tableFrom": "produto_grupo_compatibilidade",
+          "tableTo": "grupo_compatibilidade",
+          "columnsFrom": [
+            "grupo_compatibilidade_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

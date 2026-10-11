@@ -43,7 +43,6 @@ CREATE TABLE "produto_carga_quimica" (
 CREATE TABLE "produto_quimico" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"classe_risco_id" uuid NOT NULL,
-	"grupo_compatibilidade_id" uuid NOT NULL,
 	"nome" text NOT NULL,
 	"descricao" text,
 	"numero_onu" varchar(50),
@@ -72,10 +71,19 @@ CREATE TABLE "grupo_compatibilidade" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "produto_grupo_compatibilidade" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"produto_id" uuid NOT NULL,
+	"grupo_compatibilidade_id" uuid NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "carga_quimica" ADD CONSTRAINT "fk_carga_quimica_produto" FOREIGN KEY ("produto_quimico_id") REFERENCES "public"."produto_quimico"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "carga_quimica" ADD CONSTRAINT "fk_carga_quimica_responsavel" FOREIGN KEY ("responsavel_tecnico_id") REFERENCES "public"."responsavel_tecnico"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documento" ADD CONSTRAINT "fk_documento_carga" FOREIGN KEY ("carga_quimica_id") REFERENCES "public"."carga_quimica"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "produto_carga_quimica" ADD CONSTRAINT "fk_produto_carga_produto" FOREIGN KEY ("produto_id") REFERENCES "public"."produto_quimico"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "produto_carga_quimica" ADD CONSTRAINT "fk_produto_carga_carga" FOREIGN KEY ("carga_quimica_id") REFERENCES "public"."carga_quimica"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "produto_quimico" ADD CONSTRAINT "fk_produto_quimico_classe_risco" FOREIGN KEY ("classe_risco_id") REFERENCES "public"."classe_risco"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "produto_quimico" ADD CONSTRAINT "fk_produto_quimico_grupo_compat" FOREIGN KEY ("grupo_compatibilidade_id") REFERENCES "public"."grupo_compatibilidade"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "produto_grupo_compatibilidade" ADD CONSTRAINT "fk_produto_grupo_produto" FOREIGN KEY ("produto_id") REFERENCES "public"."produto_quimico"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "produto_grupo_compatibilidade" ADD CONSTRAINT "fk_produto_grupo_grupo" FOREIGN KEY ("grupo_compatibilidade_id") REFERENCES "public"."grupo_compatibilidade"("id") ON DELETE no action ON UPDATE no action;
