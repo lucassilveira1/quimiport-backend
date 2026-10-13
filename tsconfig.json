@@ -1,23 +1,22 @@
 {
   "compilerOptions": {
     "outDir": "./dist",
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "rootDir": "src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "target": "es2022",
     "lib": ["esnext"],
     "types": ["node"],
 
-    // Adicione ou ajuste estas linhas:
     "esModuleInterop": true,
     "noImplicitAny": false,
 
     "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "strict": true,
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "drizzle.config.ts"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "tests"]
 }
