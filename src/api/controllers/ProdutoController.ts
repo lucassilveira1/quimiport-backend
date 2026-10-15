@@ -1,23 +1,19 @@
-// Controller de produtos químicos. Responsável: Vitor
-// Controller "fino": não tem regra de negócio. Lê a entrada já validada,
-// chama o caso de uso (Paula) e formata a resposta. Erros vão para o errorHandler.
-
 import { Request, Response } from "express";
-import { CriarProduto } from "../../application/use-cases/produto/CriarProduto";
+import { CriarProdutoQuimico } from "../../application/use-cases/produto/CriarProduto";
 import { AtualizarProduto } from "../../application/use-cases/produto/AtualizarProduto";
 import { InativarProduto } from "../../application/use-cases/produto/InativarProduto";
 import { ListarProdutos } from "../../application/use-cases/produto/ListarProdutos";
 import { BuscarProduto } from "../../application/use-cases/produto/BuscarProduto";
 import { IdParamsDTO } from "../dtos/common.dto";
-import { AtualizarProdutoDTO, CriarProdutoDTO, ListarProdutosQueryDTO } from "../dtos/produto.dto";
+import { CriarProdutoDTO, AtualizarProdutoDTO, ListarProdutosQueryDTO } from "../dtos/produto.dto";
 import { validated } from "../middlewares/validate";
 
 export interface ProdutoControllerDeps {
-  criarProduto: CriarProduto;
+  criarProduto: CriarProdutoQuimico;
   atualizarProduto: AtualizarProduto;
-  inativarProduto: InativarProduto;
-  listarProdutos: ListarProdutos;
-  buscarProduto: BuscarProduto;
+  inativarProduto?: InativarProduto;
+  listarProdutos?: ListarProdutos;
+  buscarProduto?: BuscarProduto;
 }
 
 export class ProdutoController {
@@ -26,18 +22,7 @@ export class ProdutoController {
   criar = async (_req: Request, res: Response): Promise<void> => {
     const dados = validated<CriarProdutoDTO>(res, "body");
     const produto = await this.deps.criarProduto.executar(dados);
-    res.status(201).location(`/produtos-quimicos/${produto.id}`).json({ dados: produto });
-  };
-
-  listar = async (_req: Request, res: Response): Promise<void> => {
-    const filtro = validated<ListarProdutosQueryDTO>(res, "query");
-    const produtos = await this.deps.listarProdutos.executar(filtro);
-    res.json({ dados: produtos, total: produtos.length });
-  };
-
-  buscarPorId = async (_req: Request, res: Response): Promise<void> => {
-    const { id } = validated<IdParamsDTO>(res, "params");
-    res.json({ dados: await this.deps.buscarProduto.executar(id) });
+    res.status(201).json({ dados: produto });
   };
 
   atualizar = async (_req: Request, res: Response): Promise<void> => {
@@ -48,7 +33,23 @@ export class ProdutoController {
 
   inativar = async (_req: Request, res: Response): Promise<void> => {
     const { id } = validated<IdParamsDTO>(res, "params");
-    await this.deps.inativarProduto.executar(id);
-    res.status(204).send();
+    if (this.deps.inativarProduto) {
+      res.json({ dados: await this.deps.inativarProduto.executar(id) });
+    }
+  };
+
+  listar = async (_req: Request, res: Response): Promise<void> => {
+    const filtro = validated<ListarProdutosQueryDTO>(res, "query");
+    if (this.deps.listarProdutos) {
+      const produtos = await this.deps.listarProdutos.executar(filtro);
+      res.json({ dados: produtos, total: produtos.length });
+    }
+  };
+
+  buscarPorId = async (_req: Request, res: Response): Promise<void> => {
+    const { id } = validated<IdParamsDTO>(res, "params");
+    if (this.deps.buscarProduto) {
+      res.json({ dados: await this.deps.buscarProduto.executar(id) });
+    }
   };
 }

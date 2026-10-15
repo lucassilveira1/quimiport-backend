@@ -1,5 +1,5 @@
-// Controller de cargas químicas. Responsável: Vitor
-// Recebe a requisição, chama os casos de uso (Paula) e formata a resposta.
+// Controller de cargas químicas.
+// Recebe a requisição, chama os casos de uso e formata a resposta.
 
 import { Request, Response } from "express";
 import { RegistrarCarga } from "../../application/use-cases/carga/RegistrarCarga";
@@ -10,7 +10,12 @@ import { CancelarCarga } from "../../application/use-cases/carga/CancelarCarga";
 import { ListarCargas } from "../../application/use-cases/carga/ListarCargas";
 import { BuscarCarga } from "../../application/use-cases/carga/BuscarCarga";
 import { IdParamsDTO } from "../dtos/common.dto";
-import { AtualizarStatusDTO, BloquearCargaDTO, ListarCargasQueryDTO, RegistrarCargaDTO } from "../dtos/carga.dto";
+import {
+  AtualizarStatusDTO,
+  BloquearCargaDTO,
+  ListarCargasQueryDTO,
+  RegistrarCargaDTO,
+} from "../dtos/carga.dto";
 import { validated } from "../middlewares/validate";
 
 export interface CargaControllerDeps {

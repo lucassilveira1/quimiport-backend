@@ -5,10 +5,11 @@ import { logger } from "./config/logger";
 import { createApp } from "./api/app";
 import { ProdutoRepositoryImpl } from "./infra/repositories/ProdutoRepositoryImpl";
 import { CargaRepositoryImpl } from "./infra/repositories/CargaRepositoryImpl";
+import { pool } from "./config/database"; // Ajusta o caminho se o teu pool estiver noutro ficheiro (ex: ./config/pool)
 
 const app = createApp({
-  produtoRepository: new ProdutoRepositoryImpl(),
-  cargaRepository: new CargaRepositoryImpl(),
+  produtoRepository: new ProdutoRepositoryImpl(pool),
+  cargaRepository: new CargaRepositoryImpl(pool),
 });
 
 app.listen(env.port, () => {

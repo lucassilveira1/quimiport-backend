@@ -5,7 +5,7 @@
 import express, { Express } from "express";
 import { ProdutoRepository } from "../application/repositories/ProdutoRepository";
 import { CargaRepository } from "../application/repositories/CargaRepository";
-import { CriarProduto } from "../application/use-cases/produto/CriarProduto";
+import { CriarProdutoQuimico } from "../application/use-cases/produto/CriarProduto";
 import { AtualizarProduto } from "../application/use-cases/produto/AtualizarProduto";
 import { InativarProduto } from "../application/use-cases/produto/InativarProduto";
 import { ListarProdutos } from "../application/use-cases/produto/ListarProdutos";
@@ -31,7 +31,7 @@ export interface AppDependencies {
 
 export function createApp({ produtoRepository, cargaRepository }: AppDependencies): Express {
   const produtoController = new ProdutoController({
-    criarProduto: new CriarProduto(produtoRepository),
+    criarProduto: new CriarProdutoQuimico(produtoRepository),
     atualizarProduto: new AtualizarProduto(produtoRepository),
     inativarProduto: new InativarProduto(produtoRepository),
     listarProdutos: new ListarProdutos(produtoRepository),

@@ -1,4 +1,3 @@
-// DTOs (formato de entrada) de cargas químicas. Responsável: Vitor
 import { z } from "zod";
 import { UnidadeMedida } from "../../domain/enums/UnidadeMedida";
 import { StatusCargaType, TRANSICOES_PERMITIDAS } from "../../domain/value-objects/StatusCarga";
@@ -10,25 +9,27 @@ const statusCarga = enumCampo("status", STATUS_CARGA);
 export const registrarCargaSchema = z
   .object({
     codigoCarga: textoObrigatorio("codigoCarga", 50),
-    produtoQuimicoId: uuid("produtoQuimicoId"),
+    produtosQuimicosIds: z
+      .array(uuid("produtosQuimicosIds"))
+      .min(1, "Deve ser informado ao menos um produto químico"),
+    responsavelTecnicoId: uuid("responsavelTecnicoId"),
     quantidade: z
       .number({ required_error: "quantidade é obrigatória", invalid_type_error: "quantidade deve ser numérica" })
       .positive("quantidade deve ser maior que zero"),
     unidadeMedida: enumCampo("unidadeMedida", valoresDe(UnidadeMedida)),
-    // O enunciado lista origem e destino entre os dados mínimos da carga.
     origem: textoObrigatorio("origem", 150),
     destino: textoObrigatorio("destino", 150),
-    responsavelTecnico: textoObrigatorio("responsavelTecnico", 150),
     documentacaoObrigatoria: z
       .boolean({ invalid_type_error: "documentacaoObrigatoria deve ser true ou false" })
       .default(false),
     dataEntrada: z
       .string({ invalid_type_error: "dataEntrada deve ser um texto ISO 8601" })
-      .datetime({ offset: true, message: "dataEntrada deve estar no formato ISO 8601 (ex.: 2026-09-28T10:00:00Z)" })
+      .datetime({ offset: true, message: "dataEntrada deve estar no formato ISO 8601" })
       .transform((valor) => new Date(valor))
       .optional(),
   })
-  .strict(CAMPOS_NAO_PERMITIDOS); // status não é aceito: toda carga nasce "registrada"
+  .strict(CAMPOS_NAO_PERMITIDOS);
+
 export type RegistrarCargaDTO = z.infer<typeof registrarCargaSchema>;
 
 export const atualizarStatusSchema = z.object({ status: statusCarga }).strict(CAMPOS_NAO_PERMITIDOS);
