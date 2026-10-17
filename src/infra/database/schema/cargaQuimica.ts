@@ -6,13 +6,11 @@ import {
   foreignKey,
 } from "drizzle-orm/pg-core";
 import { responsavelTecnico } from "./responsavelTecnico";
-import { produtoQuimico } from "./produtoQuimico";
 
 export const cargaQuimica = pgTable(
   "carga_quimica",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    produtoQuimicoId: uuid("produto_quimico_id").notNull(),
     responsavelTecnicoId: uuid("responsavel_tecnico_id").notNull(),
     codigoCarga: text("codigo_carga").notNull(),
     quantidade: text("quantidade"),
@@ -30,11 +28,6 @@ export const cargaQuimica = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    foreignKey({
-      name: "fk_carga_quimica_produto",
-      columns: [table.produtoQuimicoId],
-      foreignColumns: [produtoQuimico.id],
-    }),
     foreignKey({
       name: "fk_carga_quimica_responsavel",
       columns: [table.responsavelTecnicoId],
