@@ -5,7 +5,7 @@ import { ProdutoQuimico, ProdutoQuimicoProps } from "../../../domain/entities/Pr
 import { DomainError } from "../../../domain/errors/DomainError";
 
 export type AtualizarProdutoInput = Partial<
-  Pick<ProdutoQuimicoProps, "nome" | "descricao" | "classeRisco" | "grupoCompatibilidade">
+  Pick<ProdutoQuimicoProps, "nome" | "descricao" | "classeRisco" | "gruposCompatibilidade">
 >;
 
 export class AtualizarProduto {

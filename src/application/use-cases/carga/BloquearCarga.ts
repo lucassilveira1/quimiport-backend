@@ -13,6 +13,6 @@ export class BloquearCarga {
       throw new DomainError("CARGA_NAO_ENCONTRADA", "Carga química não encontrada.");
     }
     carga.bloquear(motivo);
-    return this.cargaRepository.atualizarStatus(id, carga.status);
+    return this.cargaRepository.atualizarStatus(id, carga.status, carga.motivoBloqueio);
   }
 }

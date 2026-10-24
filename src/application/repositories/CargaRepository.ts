@@ -9,5 +9,9 @@ export interface CargaRepository {
   criar(carga: CargaQuimica): Promise<CargaQuimica>;
   buscarPorId(id: string): Promise<CargaQuimica | null>;
   listar(): Promise<CargaQuimica[]>;
-  atualizarStatus(id: string, novoStatus: StatusCargaType): Promise<CargaQuimica>;
+  atualizarStatus(
+    id: string,
+    novoStatus: StatusCargaType,
+    motivoBloqueio?: string
+  ): Promise<CargaQuimica>;
 }

@@ -12,3 +12,6 @@ if (!connectionString) {
 const client = postgres(connectionString);
 
 export const db = drizzle(client, { schema, casing: "snake_case" });
+
+/** Aceita tanto o `db` quanto uma transação aberta com `db.transaction`. */
+export type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete">;

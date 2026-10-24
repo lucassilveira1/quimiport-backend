@@ -2,6 +2,15 @@ import { randomUUID } from 'crypto';
 import { StatusCargaType, podeTransicionar } from '../value-objects/StatusCarga';
 import { UnidadeMedida } from '../enums/UnidadeMedida';
 import { DomainError } from '../errors/DomainError';
+import { ClasseRisco } from '../enums/ClasseRisco';
+
+/** Resumo de um produto químico contido na carga (vem do vínculo produto_carga_quimica). */
+export interface ProdutoDaCarga {
+  id: string;
+  nome: string;
+  numeroONU: string;
+  classeRisco: ClasseRisco;
+}
 
 export interface CargaQuimicaProps {
   id?: string;
@@ -44,6 +53,7 @@ export class CargaQuimica {
   private _documentacaoObrigatoria: boolean;
   private _status: StatusCargaType;
   private _motivoBloqueio?: string;
+  readonly produtos: ProdutoDaCarga[];
   readonly dataEntrada: Date;
   readonly createdAt: Date;
   private _updatedAt: Date;
@@ -60,6 +70,7 @@ export class CargaQuimica {
     documentacaoObrigatoria: boolean;
     status: StatusCargaType;
     motivoBloqueio?: string;
+    produtos?: ProdutoDaCarga[];
     dataEntrada: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -75,6 +86,7 @@ export class CargaQuimica {
     this._documentacaoObrigatoria = props.documentacaoObrigatoria;
     this._status = props.status;
     this._motivoBloqueio = props.motivoBloqueio;
+    this.produtos = props.produtos ?? [];
     this.dataEntrada = props.dataEntrada;
     this.createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -118,6 +130,7 @@ export class CargaQuimica {
     documentacaoObrigatoria: boolean;
     status: StatusCargaType;
     motivoBloqueio?: string;
+    produtos?: ProdutoDaCarga[];
     dataEntrada: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -207,6 +220,7 @@ export class CargaQuimica {
       documentacaoObrigatoria: this._documentacaoObrigatoria,
       status: this._status,
       motivoBloqueio: this._motivoBloqueio,
+      produtos: this.produtos,
       dataEntrada: this.dataEntrada,
       createdAt: this.createdAt,
       updatedAt: this._updatedAt,
