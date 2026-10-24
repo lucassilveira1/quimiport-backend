@@ -20,6 +20,7 @@ export const STATUS_POR_CODIGO: Record<string, number> = {
   // 404: recurso não existe
   PRODUTO_NAO_ENCONTRADO: 404,
   CARGA_NAO_ENCONTRADA: 404,
+  GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO: 404,
   // 409: conflito com o estado atual
   PRODUTO_JA_INATIVO: 409,
   // 422: regra de negócio violada

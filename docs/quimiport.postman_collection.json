@@ -1,0 +1,161 @@
+{
+  "info": {
+    "name": "QuimiPort API",
+    "description": "Rotas da API QuimiPort. Rode as requisições na ordem: criar produto e registrar carga salvam os IDs nas variáveis {{produtoId}} e {{cargaId}}, usadas pelas demais.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "produtoId", "value": "" },
+    { "key": "cargaId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "Produtos químicos",
+      "item": [
+        {
+          "name": "Criar produto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().dados?.id;",
+                  "if (id) pm.collectionVariables.set('produtoId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/produtos-quimicos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ácido Sulfúrico\",\n  \"descricao\": \"Ácido forte corrosivo\",\n  \"numeroONU\": \"UN1830\",\n  \"classeRisco\": \"classe_8_corrosivos\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar produtos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/produtos-quimicos?status=ativo",
+              "host": ["{{baseUrl}}"],
+              "path": ["produtos-quimicos"],
+              "query": [{ "key": "status", "value": "ativo", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Buscar produto por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}" }
+        },
+        {
+          "name": "Atualizar produto",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ácido Sulfúrico 98%\",\n  \"descricao\": \"Concentrado\",\n  \"classeRisco\": \"classe_8_corrosivos\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Inativar produto",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}/inativar" }
+        }
+      ]
+    },
+    {
+      "name": "Cargas químicas",
+      "item": [
+        {
+          "name": "Registrar carga",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().dados?.id;",
+                  "if (id) pm.collectionVariables.set('cargaId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cargas-quimicas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigoCarga\": \"SSZ-2026-0001\",\n  \"produtoQuimicoId\": \"{{produtoId}}\",\n  \"quantidade\": 1200,\n  \"unidadeMedida\": \"kg\",\n  \"origem\": \"Terminal Alemoa\",\n  \"destino\": \"Cubatão\",\n  \"responsavelTecnico\": \"Eng. Maria Souza\",\n  \"documentacaoObrigatoria\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar cargas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/cargas-quimicas?status=registrada&produtoQuimicoId={{produtoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["cargas-quimicas"],
+              "query": [
+                { "key": "status", "value": "registrada", "disabled": true },
+                { "key": "produtoQuimicoId", "value": "{{produtoId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar carga por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/cargas-quimicas/{{cargaId}}" }
+        },
+        {
+          "name": "Atualizar status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cargas-quimicas/{{cargaId}}/status",
+            "description": "Fluxo: registrada -> em_analise -> em_inspecao -> liberada -> em_movimentacao -> finalizada",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"em_analise\"\n}" }
+          }
+        },
+        {
+          "name": "Liberar carga",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/cargas-quimicas/{{cargaId}}/liberar",
+            "description": "Só a partir de em_inspecao e com documentação obrigatória completa."
+          }
+        },
+        {
+          "name": "Bloquear carga",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cargas-quimicas/{{cargaId}}/bloquear",
+            "description": "Só a partir de em_inspecao.",
+            "body": { "mode": "raw", "raw": "{\n  \"motivo\": \"Lacre violado\"\n}" }
+          }
+        },
+        {
+          "name": "Cancelar carga",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/cargas-quimicas/{{cargaId}}/cancelar" }
+        }
+      ]
+    }
+  ]
+}
