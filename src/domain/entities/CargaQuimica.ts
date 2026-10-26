@@ -2,25 +2,31 @@ import { randomUUID } from 'crypto';
 import { StatusCargaType, podeTransicionar } from '../value-objects/StatusCarga';
 import { UnidadeMedida } from '../enums/UnidadeMedida';
 import { DomainError } from '../errors/DomainError';
-import { ClasseRisco } from '../enums/ClasseRisco';
 
 /** Resumo de um produto químico contido na carga (vem do vínculo produto_carga_quimica). */
 export interface ProdutoDaCarga {
   id: string;
   nome: string;
   numeroONU: string;
-  classeRisco: ClasseRisco;
+  /** Texto da classe de risco do produto (ex.: "classe_8_corrosivos"). */
+  classeRisco: string;
+}
+
+/** Responsável técnico da carga (vem da tabela responsavel_tecnico). */
+export interface ResponsavelDaCarga {
+  id: string;
+  nome: string;
 }
 
 export interface CargaQuimicaProps {
   id?: string;
   codigoCarga: string;
-  produtoQuimicoId: string;
+  produtos: ProdutoDaCarga[];
   quantidade: number;
   unidadeMedida: UnidadeMedida;
   origem?: string;
   destino?: string;
-  responsavelTecnico: string;
+  responsavelTecnico: ResponsavelDaCarga;
   /** true quando toda a documentação obrigatória já foi providenciada. */
   documentacaoObrigatoria: boolean;
   status?: StatusCargaType;
@@ -33,9 +39,9 @@ export interface CargaQuimicaProps {
  * Entidade CargaQuimica — o agregado principal do domínio.
  *
  * Regras aplicadas no registro:
- * - não pode ser registrada sem produto químico associado;
+ * - não pode ser registrada sem ao menos um produto químico associado;
  * - não pode ser registrada com produto químico inativo (checado via o
- *   parâmetro `produtoEstaAtivo`, resolvido pelo caso de uso RegistrarCarga);
+ *   parâmetro `produtosEstaoAtivos`, resolvido pelo caso de uso RegistrarCarga);
  * - quantidade deve ser maior que zero;
  * - deve possuir responsável técnico informado.
  *
@@ -44,12 +50,11 @@ export interface CargaQuimicaProps {
 export class CargaQuimica {
   readonly id: string;
   private _codigoCarga: string;
-  readonly produtoQuimicoId: string;
   private _quantidade: number;
   private _unidadeMedida: UnidadeMedida;
   private _origem?: string;
   private _destino?: string;
-  private _responsavelTecnico: string;
+  private _responsavelTecnico: ResponsavelDaCarga;
   private _documentacaoObrigatoria: boolean;
   private _status: StatusCargaType;
   private _motivoBloqueio?: string;
@@ -61,23 +66,21 @@ export class CargaQuimica {
   private constructor(props: {
     id: string;
     codigoCarga: string;
-    produtoQuimicoId: string;
     quantidade: number;
     unidadeMedida: UnidadeMedida;
     origem?: string;
     destino?: string;
-    responsavelTecnico: string;
+    responsavelTecnico: ResponsavelDaCarga;
     documentacaoObrigatoria: boolean;
     status: StatusCargaType;
     motivoBloqueio?: string;
-    produtos?: ProdutoDaCarga[];
+    produtos: ProdutoDaCarga[];
     dataEntrada: Date;
     createdAt: Date;
     updatedAt: Date;
   }) {
     this.id = props.id;
     this._codigoCarga = props.codigoCarga;
-    this.produtoQuimicoId = props.produtoQuimicoId;
     this._quantidade = props.quantidade;
     this._unidadeMedida = props.unidadeMedida;
     this._origem = props.origem;
@@ -86,7 +89,7 @@ export class CargaQuimica {
     this._documentacaoObrigatoria = props.documentacaoObrigatoria;
     this._status = props.status;
     this._motivoBloqueio = props.motivoBloqueio;
-    this.produtos = props.produtos ?? [];
+    this.produtos = props.produtos;
     this.dataEntrada = props.dataEntrada;
     this.createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -94,21 +97,21 @@ export class CargaQuimica {
 
   /**
    * Registra uma nova carga química.
-   * @param produtoEstaAtivo resultado da checagem, feita pelo caso de uso,
-   *        de que o produto associado existe e está ativo.
+   * @param produtosEstaoAtivos resultado da checagem, feita pelo caso de uso,
+   *        de que todos os produtos associados existem e estão ativos.
    */
-  static registrar(props: CargaQuimicaProps, produtoEstaAtivo: boolean): CargaQuimica {
-    CargaQuimica.validar(props, produtoEstaAtivo);
+  static registrar(props: CargaQuimicaProps, produtosEstaoAtivos: boolean): CargaQuimica {
+    CargaQuimica.validar(props, produtosEstaoAtivos);
     const agora = new Date();
     return new CargaQuimica({
       id: props.id ?? randomUUID(),
       codigoCarga: props.codigoCarga,
-      produtoQuimicoId: props.produtoQuimicoId,
+      produtos: props.produtos,
       quantidade: props.quantidade,
       unidadeMedida: props.unidadeMedida,
       origem: props.origem,
       destino: props.destino,
-      responsavelTecnico: props.responsavelTecnico.trim(),
+      responsavelTecnico: props.responsavelTecnico,
       documentacaoObrigatoria: props.documentacaoObrigatoria ?? false,
       status: props.status ?? 'registrada',
       dataEntrada: props.dataEntrada ?? agora,
@@ -121,16 +124,15 @@ export class CargaQuimica {
   static reidratar(props: {
     id: string;
     codigoCarga: string;
-    produtoQuimicoId: string;
     quantidade: number;
     unidadeMedida: UnidadeMedida;
     origem?: string;
     destino?: string;
-    responsavelTecnico: string;
+    responsavelTecnico: ResponsavelDaCarga;
     documentacaoObrigatoria: boolean;
     status: StatusCargaType;
     motivoBloqueio?: string;
-    produtos?: ProdutoDaCarga[];
+    produtos: ProdutoDaCarga[];
     dataEntrada: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -138,14 +140,14 @@ export class CargaQuimica {
     return new CargaQuimica(props);
   }
 
-  private static validar(props: CargaQuimicaProps, produtoEstaAtivo: boolean): void {
-    if (!props.produtoQuimicoId) {
+  private static validar(props: CargaQuimicaProps, produtosEstaoAtivos: boolean): void {
+    if (!props.produtos || props.produtos.length === 0) {
       throw new DomainError(
         'PRODUTO_OBRIGATORIO',
         'Carga química não pode ser registrada sem produto químico associado.'
       );
     }
-    if (!produtoEstaAtivo) {
+    if (!produtosEstaoAtivos) {
       throw new DomainError(
         'PRODUTO_INATIVO',
         'Carga química não pode ser registrada com produto químico inativo.'
@@ -154,7 +156,7 @@ export class CargaQuimica {
     if (props.quantidade === undefined || props.quantidade === null || props.quantidade <= 0) {
       throw new DomainError('QUANTIDADE_INVALIDA', 'A quantidade da carga deve ser maior que zero.');
     }
-    if (!props.responsavelTecnico || !props.responsavelTecnico.trim()) {
+    if (!props.responsavelTecnico?.id) {
       throw new DomainError(
         'RESPONSAVEL_TECNICO_OBRIGATORIO',
         'Toda carga deve possuir um responsável técnico informado.'
@@ -201,7 +203,7 @@ export class CargaQuimica {
   get unidadeMedida(): UnidadeMedida { return this._unidadeMedida; }
   get origem(): string | undefined { return this._origem; }
   get destino(): string | undefined { return this._destino; }
-  get responsavelTecnico(): string { return this._responsavelTecnico; }
+  get responsavelTecnico(): ResponsavelDaCarga { return this._responsavelTecnico; }
   get documentacaoObrigatoria(): boolean { return this._documentacaoObrigatoria; }
   get status(): StatusCargaType { return this._status; }
   get motivoBloqueio(): string | undefined { return this._motivoBloqueio; }
@@ -211,7 +213,6 @@ export class CargaQuimica {
     return {
       id: this.id,
       codigoCarga: this._codigoCarga,
-      produtoQuimicoId: this.produtoQuimicoId,
       quantidade: this._quantidade,
       unidadeMedida: this._unidadeMedida,
       origem: this._origem,

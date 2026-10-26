@@ -1,11 +1,11 @@
 // DTOs (formato de entrada) de produtos químicos. Responsável: Vitor
 // Os valores aceitos vêm dos enums do domínio (Paula), então nunca ficam desatualizados.
 import { z } from "zod";
-import { ClasseRisco } from "../../domain/enums/ClasseRisco";
 import { StatusProduto } from "../../domain/enums/StatusProduto";
-import { CAMPOS_NAO_PERMITIDOS, enumCampo, textoObrigatorio, textoOpcional, valoresDe } from "./common.dto";
+import { CAMPOS_NAO_PERMITIDOS, enumCampo, textoObrigatorio, textoOpcional, uuid, valoresDe } from "./common.dto";
 
-const classeRisco = enumCampo("classeRisco", valoresDe(ClasseRisco));
+/** A classe de risco é enviada pelo id (tabela classe_risco). */
+const classeRisco = uuid("classeRisco");
 const statusProduto = enumCampo("status", valoresDe(StatusProduto));
 
 /**
@@ -35,7 +35,7 @@ export type CriarProdutoDTO = z.infer<typeof criarProdutoSchema>;
 
 /**
  * PUT: envia de novo os dados editáveis do produto.
- * numeroONU e status não mudam aqui (status muda por PATCH /:id/inativar).
+ * numeroONU e status não mudam aqui (status muda por PATCH /:id/inativar e /:id/ativar).
  */
 export const atualizarProdutoSchema = z
   .object({

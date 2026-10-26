@@ -6,6 +6,7 @@ import { Request, Response } from "express";
 import { CriarProduto } from "../../application/use-cases/produto/CriarProduto";
 import { AtualizarProduto } from "../../application/use-cases/produto/AtualizarProduto";
 import { InativarProduto } from "../../application/use-cases/produto/InativarProduto";
+import { AtivarProduto } from "../../application/use-cases/produto/AtivarProduto";
 import { ListarProdutos } from "../../application/use-cases/produto/ListarProdutos";
 import { BuscarProduto } from "../../application/use-cases/produto/BuscarProduto";
 import { IdParamsDTO } from "../dtos/common.dto";
@@ -16,6 +17,7 @@ export interface ProdutoControllerDeps {
   criarProduto: CriarProduto;
   atualizarProduto: AtualizarProduto;
   inativarProduto: InativarProduto;
+  ativarProduto: AtivarProduto;
   listarProdutos: ListarProdutos;
   buscarProduto: BuscarProduto;
 }
@@ -49,6 +51,12 @@ export class ProdutoController {
   inativar = async (_req: Request, res: Response): Promise<void> => {
     const { id } = validated<IdParamsDTO>(res, "params");
     await this.deps.inativarProduto.executar(id);
+    res.status(204).send();
+  };
+
+  ativar = async (_req: Request, res: Response): Promise<void> => {
+    const { id } = validated<IdParamsDTO>(res, "params");
+    await this.deps.ativarProduto.executar(id);
     res.status(204).send();
   };
 }

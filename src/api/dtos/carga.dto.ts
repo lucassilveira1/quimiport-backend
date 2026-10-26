@@ -10,7 +10,13 @@ const statusCarga = enumCampo("status", STATUS_CARGA);
 export const registrarCargaSchema = z
   .object({
     codigoCarga: textoObrigatorio("codigoCarga", 50),
-    produtoQuimicoId: uuid("produtoQuimicoId"),
+    // Ids dos produtos químicos da carga (ao menos um).
+    produtos: z
+      .array(uuid("produtos"), {
+        required_error: "produtos é obrigatório",
+        invalid_type_error: "produtos deve ser uma lista de ids de produtos",
+      })
+      .min(1, "a carga deve ter ao menos um produto"),
     quantidade: z
       .number({ required_error: "quantidade é obrigatória", invalid_type_error: "quantidade deve ser numérica" })
       .positive("quantidade deve ser maior que zero"),
@@ -18,7 +24,8 @@ export const registrarCargaSchema = z
     // O enunciado lista origem e destino entre os dados mínimos da carga.
     origem: textoObrigatorio("origem", 150),
     destino: textoObrigatorio("destino", 150),
-    responsavelTecnico: textoObrigatorio("responsavelTecnico", 150),
+    // Id do responsável técnico (tabela responsavel_tecnico).
+    responsavelTecnico: uuid("responsavelTecnico"),
     documentacaoObrigatoria: z
       .boolean({ invalid_type_error: "documentacaoObrigatoria deve ser true ou false" })
       .default(false),

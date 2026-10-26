@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "jest --passWithNoTests",
+    "test:integration": "jest --config jest.integration.config.js --runInBand",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

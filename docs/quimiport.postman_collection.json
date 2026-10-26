@@ -1,11 +1,13 @@
 {
   "info": {
     "name": "QuimiPort API",
-    "description": "Rotas da API QuimiPort. Rode as requisições na ordem: criar produto e registrar carga salvam os IDs nas variáveis {{produtoId}} e {{cargaId}}, usadas pelas demais.",
+    "description": "Rotas da API QuimiPort. Rode as requisições na ordem: listar classes de risco, criar responsável técnico, criar produto e registrar carga salvam os IDs nas variáveis {{classeRiscoId}}, {{responsavelTecnicoId}}, {{produtoId}} e {{cargaId}}, usadas pelas demais.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "classeRiscoId", "value": "" },
+    { "key": "responsavelTecnicoId", "value": "" },
     { "key": "produtoId", "value": "" },
     { "key": "cargaId", "value": "" }
   ],
@@ -13,6 +15,70 @@
     {
       "name": "Health",
       "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "Classes de risco",
+      "item": [
+        {
+          "name": "Listar classes de risco",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const classe = pm.response.json().dados?.find((c) => c.codigo === 'classe_8_corrosivos');",
+                  "if (classe) pm.collectionVariables.set('classeRiscoId', classe.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/classes-risco",
+            "description": "Salva em {{classeRiscoId}} o id da classe_8_corrosivos."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Responsáveis técnicos",
+      "item": [
+        {
+          "name": "Criar responsável técnico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().dados?.id;",
+                  "if (id) pm.collectionVariables.set('responsavelTecnicoId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/responsaveis-tecnicos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Eng. Maria Souza\",\n  \"telefone\": \"(13) 99999-0000\",\n  \"email\": \"maria.souza@quimiport.com.br\",\n  \"cpf\": \"123.456.789-09\",\n  \"registroCrq\": \"CRQ-IV 04123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar responsáveis técnicos",
+          "request": { "method": "GET", "url": "{{baseUrl}}/responsaveis-tecnicos" }
+        },
+        {
+          "name": "Buscar responsável técnico por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/responsaveis-tecnicos/{{responsavelTecnicoId}}" }
+        }
+      ]
     },
     {
       "name": "Produtos químicos",
@@ -38,7 +104,7 @@
             "url": "{{baseUrl}}/produtos-quimicos",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Ácido Sulfúrico\",\n  \"descricao\": \"Ácido forte corrosivo\",\n  \"numeroONU\": \"UN1830\",\n  \"classeRisco\": \"classe_8_corrosivos\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
+              "raw": "{\n  \"nome\": \"Ácido Sulfúrico\",\n  \"descricao\": \"Ácido forte corrosivo\",\n  \"numeroONU\": \"UN1830\",\n  \"classeRisco\": \"{{classeRiscoId}}\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
             }
           }
         },
@@ -66,13 +132,21 @@
             "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Ácido Sulfúrico 98%\",\n  \"descricao\": \"Concentrado\",\n  \"classeRisco\": \"classe_8_corrosivos\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
+              "raw": "{\n  \"nome\": \"Ácido Sulfúrico 98%\",\n  \"descricao\": \"Concentrado\",\n  \"classeRisco\": \"{{classeRiscoId}}\",\n  \"gruposCompatibilidade\": [\"G1\", \"G2\"]\n}"
             }
           }
         },
         {
           "name": "Inativar produto",
           "request": { "method": "PATCH", "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}/inativar" }
+        },
+        {
+          "name": "Ativar produto",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/produtos-quimicos/{{produtoId}}/ativar",
+            "description": "Reativa um produto inativo."
+          }
         }
       ]
     },
@@ -100,7 +174,7 @@
             "url": "{{baseUrl}}/cargas-quimicas",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"codigoCarga\": \"SSZ-2026-0001\",\n  \"produtoQuimicoId\": \"{{produtoId}}\",\n  \"quantidade\": 1200,\n  \"unidadeMedida\": \"kg\",\n  \"origem\": \"Terminal Alemoa\",\n  \"destino\": \"Cubatão\",\n  \"responsavelTecnico\": \"Eng. Maria Souza\",\n  \"documentacaoObrigatoria\": true\n}"
+              "raw": "{\n  \"codigoCarga\": \"SSZ-2026-0001\",\n  \"produtos\": [\"{{produtoId}}\"],\n  \"quantidade\": 1200,\n  \"unidadeMedida\": \"kg\",\n  \"origem\": \"Terminal Alemoa\",\n  \"destino\": \"Cubatão\",\n  \"responsavelTecnico\": \"{{responsavelTecnicoId}}\",\n  \"documentacaoObrigatoria\": true\n}"
             }
           }
         },
