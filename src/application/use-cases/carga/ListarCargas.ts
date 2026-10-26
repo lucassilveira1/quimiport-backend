@@ -18,7 +18,7 @@ export class ListarCargas {
     return cargas.filter(
       (c) =>
         (!filtro.status || c.status === filtro.status) &&
-        (!filtro.produtoQuimicoId || c.produtoQuimicoId === filtro.produtoQuimicoId)
+        (!filtro.produtoQuimicoId || c.produtos.some((p) => p.id === filtro.produtoQuimicoId))
     );
   }
 }

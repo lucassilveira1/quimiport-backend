@@ -1,18 +1,24 @@
 import { randomUUID } from "crypto";
-import { ClasseRisco } from "../enums/ClasseRisco";
 import { StatusProduto } from "../enums/StatusProduto";
 import { DomainError } from "../errors/DomainError";
+import { Referencia } from "../value-objects/Referencia";
 
 export interface ProdutoQuimicoProps {
     id?: string;
     nome: string;
     descricao?: string;
     numeroONU: string;
-    classeRisco: ClasseRisco;
-    gruposCompatibilidade?: string[];
+    classeRisco: Referencia;
+    gruposCompatibilidade?: Referencia[];
     status?: StatusProduto;
     createdAt?: Date;
     updatedAt?: Date;
+}
+
+/** Remove grupos repetidos (mesmo id), mantendo a ordem de chegada. */
+function semRepetidos(grupos: Referencia[]): Referencia[] {
+    const porId = new Map(grupos.map((grupo) => [grupo.id, grupo]));
+    return [...porId.values()];
 }
 
 /**
@@ -20,18 +26,20 @@ export interface ProdutoQuimicoProps {
  *
  * Regras aplicadas:
  * - não pode ser cadastrado sem nome;
- * - não pode ser cadastrado sem classe de risco válida;
+ * - não pode ser cadastrado sem classe de risco (a existência dela é checada
+ *   pelo caso de uso, que busca a classe pelo id antes de criar o produto);
  * - não pode ser cadastrado com status inválido;
  * - uma vez inativo, não pode ser reutilizado em novas cargas (checado no
- *   caso de uso RegistrarCarga, que consulta este produto antes de criar a carga).
+ *   caso de uso RegistrarCarga, que consulta este produto antes de criar a carga);
+ * - um produto inativo pode ser reativado.
  */
 export class ProdutoQuimico {
     readonly id: string;
     private _nome: string;
     private _descricao?: string;
     private _numeroONU: string;
-    private _classeRisco: ClasseRisco;
-    private _gruposCompatibilidade: string[];
+    private _classeRisco: Referencia;
+    private _gruposCompatibilidade: Referencia[];
     private _status: StatusProduto;
     readonly createdAt: Date;
     private _updatedAt: Date;
@@ -41,8 +49,8 @@ export class ProdutoQuimico {
         nome: string;
         descricao?: string;
         numeroONU: string;
-        classeRisco: ClasseRisco;
-        gruposCompatibilidade: string[];
+        classeRisco: Referencia;
+        gruposCompatibilidade: Referencia[];
         status: StatusProduto;
         createdAt: Date;
         updatedAt: Date;
@@ -52,9 +60,7 @@ export class ProdutoQuimico {
         this._descricao = props.descricao;
         this._numeroONU = props.numeroONU;
         this._classeRisco = props.classeRisco;
-        this._gruposCompatibilidade = [
-            ...new Set(props.gruposCompatibilidade),
-        ];
+        this._gruposCompatibilidade = semRepetidos(props.gruposCompatibilidade);
         this._status = props.status;
         this.createdAt = props.createdAt;
         this._updatedAt = props.updatedAt;
@@ -92,10 +98,7 @@ export class ProdutoQuimico {
                 "Produto químico deve possuir um nome.",
             );
         }
-        if (
-            !props.classeRisco ||
-            !Object.values(ClasseRisco).includes(props.classeRisco)
-        ) {
+        if (!props.classeRisco?.id) {
             throw new DomainError(
                 "CLASSE_RISCO_INVALIDA",
                 "Produto químico deve possuir uma classe de risco válida.",
@@ -124,6 +127,18 @@ export class ProdutoQuimico {
         this._updatedAt = new Date();
     }
 
+    /** Reativa um produto inativo, permitindo de novo seu uso em novas cargas. */
+    ativar(): void {
+        if (this._status === StatusProduto.ATIVO) {
+            throw new DomainError(
+                "PRODUTO_JA_ATIVO",
+                "Produto químico já está ativo.",
+            );
+        }
+        this._status = StatusProduto.ATIVO;
+        this._updatedAt = new Date();
+    }
+
     atualizarDados(
         dados: Partial<
             Pick<
@@ -147,9 +162,9 @@ export class ProdutoQuimico {
         if (dados.classeRisco !== undefined)
             this._classeRisco = dados.classeRisco;
         if (dados.gruposCompatibilidade !== undefined) {
-            this._gruposCompatibilidade = [
-                ...new Set(dados.gruposCompatibilidade),
-            ];
+            this._gruposCompatibilidade = semRepetidos(
+                dados.gruposCompatibilidade,
+            );
         }
         this._updatedAt = new Date();
     }
@@ -163,10 +178,10 @@ export class ProdutoQuimico {
     get numeroONU(): string {
         return this._numeroONU;
     }
-    get classeRisco(): ClasseRisco {
+    get classeRisco(): Referencia {
         return this._classeRisco;
     }
-    get gruposCompatibilidade(): string[] {
+    get gruposCompatibilidade(): Referencia[] {
         return [...this._gruposCompatibilidade];
     }
     get status(): StatusProduto {

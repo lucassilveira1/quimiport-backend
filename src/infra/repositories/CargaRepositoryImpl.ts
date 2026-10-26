@@ -4,11 +4,10 @@ import {
     CargaQuimica,
     ProdutoDaCarga,
 } from "../../domain/entities/CargaQuimica";
-import { ClasseRisco } from "../../domain/enums/ClasseRisco";
 import { UnidadeMedida } from "../../domain/enums/UnidadeMedida";
 import { DomainError } from "../../domain/errors/DomainError";
 import { StatusCargaType } from "../../domain/value-objects/StatusCarga";
-import { db, DbExecutor } from "../database";
+import { db } from "../database";
 import {
     cargaQuimica,
     classeRisco,
@@ -17,27 +16,15 @@ import {
     responsavelTecnico,
 } from "../database/schema";
 
-async function obterResponsavelId(
-    ex: DbExecutor,
-    nome: string,
-): Promise<string> {
-    const [existente] = await ex
-        .select({ id: responsavelTecnico.id })
-        .from(responsavelTecnico)
-        .where(eq(responsavelTecnico.nome, nome))
-        .limit(1);
-    if (existente) return existente.id;
-
-    const [novo] = await ex
-        .insert(responsavelTecnico)
-        .values({ nome, status: "ativo" })
-        .returning({ id: responsavelTecnico.id });
-    return novo.id;
-}
-
 function consultarCargas() {
     return db
-        .select({ carga: cargaQuimica, responsavel: responsavelTecnico.nome })
+        .select({
+            carga: cargaQuimica,
+            responsavel: {
+                id: responsavelTecnico.id,
+                nome: responsavelTecnico.nome,
+            },
+        })
         .from(cargaQuimica)
         .innerJoin(
             responsavelTecnico,
@@ -79,11 +66,7 @@ async function buscarProdutosDasCargas(
 
     for (const { cargaId, ...produto } of linhas) {
         const produtos = produtosPorCarga.get(cargaId) ?? [];
-        produtos.push({
-            ...produto,
-            numeroONU: produto.numeroONU ?? "",
-            classeRisco: produto.classeRisco as ClasseRisco,
-        });
+        produtos.push({ ...produto, numeroONU: produto.numeroONU ?? "" });
         produtosPorCarga.set(cargaId, produtos);
     }
     return produtosPorCarga;
@@ -105,7 +88,6 @@ function paraEntidade(
     return CargaQuimica.reidratar({
         id: carga.id,
         codigoCarga: carga.codigoCarga,
-        produtoQuimicoId: produtos[0]?.id ?? "",
         quantidade: Number(carga.quantidade),
         unidadeMedida: carga.unidadeMedida as UnidadeMedida,
         origem: carga.origem ?? undefined,
@@ -124,13 +106,9 @@ function paraEntidade(
 export class CargaRepositoryImpl implements CargaRepository {
     async criar(carga: CargaQuimica): Promise<CargaQuimica> {
         await db.transaction(async (tx) => {
-            const responsavelTecnicoId = await obterResponsavelId(
-                tx,
-                carga.responsavelTecnico,
-            );
             await tx.insert(cargaQuimica).values({
                 id: carga.id,
-                responsavelTecnicoId,
+                responsavelTecnicoId: carga.responsavelTecnico.id,
                 codigoCarga: carga.codigoCarga,
                 quantidade: String(carga.quantidade),
                 unidadeMedida: carga.unidadeMedida,
@@ -143,10 +121,12 @@ export class CargaRepositoryImpl implements CargaRepository {
                 createdAt: carga.createdAt,
                 updatedAt: carga.updatedAt,
             });
-            await tx.insert(produtoCargaQuimica).values({
-                produtoId: carga.produtoQuimicoId,
-                cargaQuimicaId: carga.id,
-            });
+            await tx.insert(produtoCargaQuimica).values(
+                carga.produtos.map(({ id }) => ({
+                    produtoId: id,
+                    cargaQuimicaId: carga.id,
+                })),
+            );
         });
 
         // Relê do banco para a resposta já trazer o array de produtos.

@@ -16,6 +16,7 @@ export function produtoRoutes(controller: ProdutoController): Router {
   router.get("/:id", validate({ params }), asyncHandler(controller.buscarPorId));
   router.put("/:id", validate({ params, body: atualizarProdutoSchema }), asyncHandler(controller.atualizar));
   router.patch("/:id/inativar", validate({ params }), asyncHandler(controller.inativar));
+  router.patch("/:id/ativar", validate({ params }), asyncHandler(controller.ativar));
 
   return router;
 }

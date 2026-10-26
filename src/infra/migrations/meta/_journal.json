@@ -15,6 +15,13 @@
       "when": 1792266960529,
       "tag": "0001_perfect_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793034383451,
+      "tag": "0002_seed_classes_risco",
+      "breakpoints": true
     }
   ]
 }

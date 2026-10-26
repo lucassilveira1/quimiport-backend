@@ -5,16 +5,20 @@ import { DomainError } from '../../src/domain/errors/DomainError';
 describe('CargaQuimica', () => {
   const propsValidas: CargaQuimicaProps = {
     codigoCarga: 'CARGA-001',
-    produtoQuimicoId: 'produto-123',
+    produtos: [{ id: 'produto-123', nome: 'Ácido Sulfúrico', numeroONU: 'UN1830', classeRisco: 'classe_8_corrosivos' }],
     quantidade: 1000,
     unidadeMedida: UnidadeMedida.KG,
-    responsavelTecnico: 'Eng. João Silva',
+    responsavelTecnico: { id: 'responsavel-1', nome: 'Eng. João Silva' },
     documentacaoObrigatoria: true,
   };
 
   it('registra uma carga válida com status "registrada"', () => {
     const carga = CargaQuimica.registrar(propsValidas, true);
     expect(carga.status).toBe('registrada');
+  });
+
+  it('não permite registrar carga sem produtos', () => {
+    expect(() => CargaQuimica.registrar({ ...propsValidas, produtos: [] }, true)).toThrow(DomainError);
   });
 
   it('não permite registrar carga com produto químico inativo', () => {
@@ -27,7 +31,7 @@ describe('CargaQuimica', () => {
 
   it('não permite registrar carga sem responsável técnico', () => {
     expect(() =>
-      CargaQuimica.registrar({ ...propsValidas, responsavelTecnico: '   ' }, true)
+      CargaQuimica.registrar({ ...propsValidas, responsavelTecnico: { id: '', nome: '' } }, true)
     ).toThrow(DomainError);
   });
 
@@ -79,10 +83,10 @@ describe('CargaQuimica', () => {
 describe('CargaQuimica - regressao: liberar sem documentacao', () => {
   const propsValidas = {
     codigoCarga: 'CARGA-001',
-    produtoQuimicoId: 'produto-123',
+    produtos: [{ id: 'produto-123', nome: 'Ácido Sulfúrico', numeroONU: 'UN1830', classeRisco: 'classe_8_corrosivos' }],
     quantidade: 1000,
     unidadeMedida: UnidadeMedida.KG,
-    responsavelTecnico: 'Eng. Joao Silva',
+    responsavelTecnico: { id: 'responsavel-1', nome: 'Eng. Joao Silva' },
     documentacaoObrigatoria: false,
   };
 

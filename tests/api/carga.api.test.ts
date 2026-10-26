@@ -1,6 +1,16 @@
 // Testes HTTP de cargas químicas. Responsável: Vitor
 import request from "supertest";
-import { avancarStatus, cargaValida, criarAppDeTeste, criarProduto, registrarCarga } from "./helpers";
+import { ClasseRisco } from "../../src/domain/enums/ClasseRisco";
+import {
+  CLASSE_RISCO_ID,
+  RESPONSAVEL,
+  avancarStatus,
+  cargaValida,
+  criarAppDeTeste,
+  criarProduto,
+  produtoValido,
+  registrarCarga,
+} from "./helpers";
 
 const ID_INEXISTENTE = "6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f";
 
@@ -44,19 +54,87 @@ describe("API - Cargas químicas", () => {
       );
     });
 
+    it("registra carga com vários produtos e devolve o resumo de cada um (201)", async () => {
+      const app = criarAppDeTeste();
+      const acido = await criarProduto(app);
+      const etanol = await criarProduto(app, {
+        ...produtoValido,
+        nome: "Etanol",
+        numeroONU: "UN1170",
+        classeRisco: CLASSE_RISCO_ID[ClasseRisco.CLASSE_3_LIQUIDOS_INFLAMAVEIS],
+      });
+
+      const res = await request(app).post("/cargas-quimicas").send(cargaValida(acido, etanol, acido));
+
+      expect(res.status).toBe(201);
+      expect(res.body.dados.produtos).toEqual([
+        { id: acido, nome: "Ácido Sulfúrico", numeroONU: "UN1830", classeRisco: "classe_8_corrosivos" },
+        { id: etanol, nome: "Etanol", numeroONU: "UN1170", classeRisco: "classe_3_liquidos_inflamaveis" },
+      ]);
+      expect(res.body.dados).not.toHaveProperty("produtoQuimicoId");
+
+      const filtro = await request(app).get(`/cargas-quimicas?produtoQuimicoId=${etanol}`);
+      expect(filtro.body.total).toBe(1);
+    });
+
+    it("bloqueia a carga inteira se um dos produtos estiver inativo (422)", async () => {
+      const app = criarAppDeTeste();
+      const ativo = await criarProduto(app);
+      const inativo = await criarProduto(app, { ...produtoValido, nome: "Cloro" });
+      await request(app).patch(`/produtos-quimicos/${inativo}/inativar`);
+
+      const res = await request(app).post("/cargas-quimicas").send(cargaValida(ativo, inativo));
+      expect(res.status).toBe(422);
+      expect(res.body.erro.codigo).toBe("PRODUTO_INATIVO");
+    });
+
     it("bloqueia carga sem produto químico associado (400)", async () => {
       const app = criarAppDeTeste();
-      const { produtoQuimicoId: _p, ...semProduto } = cargaValida(ID_INEXISTENTE);
+      const { produtos: _p, ...semProduto } = cargaValida();
       const res = await request(app).post("/cargas-quimicas").send(semProduto);
+      expect(res.status).toBe(400);
+      expect(res.body.erro.detalhes[0]).toMatchObject({ campo: "produtos", mensagem: "produtos é obrigatório" });
+
+      const listaVazia = await request(app).post("/cargas-quimicas").send(cargaValida());
+      expect(listaVazia.status).toBe(400);
+      expect(listaVazia.body.erro.detalhes[0].mensagem).toBe("a carga deve ter ao menos um produto");
+    });
+
+    it("não aceita mais o campo antigo produtoQuimicoId (400)", async () => {
+      const app = criarAppDeTeste();
+      const produtoId = await criarProduto(app);
+      const res = await request(app)
+        .post("/cargas-quimicas")
+        .send({ ...cargaValida(produtoId), produtoQuimicoId: produtoId });
       expect(res.status).toBe(400);
       expect(res.body.erro.detalhes[0].campo).toBe("produtoQuimicoId");
     });
 
-    it("bloqueia carga sem responsável técnico (400)", async () => {
+    it("recebe o responsável técnico pelo id e devolve { id, nome } (201)", async () => {
       const app = criarAppDeTeste();
       const produtoId = await criarProduto(app);
-      const res = await request(app).post("/cargas-quimicas").send({ ...cargaValida(produtoId), responsavelTecnico: " " });
+      const res = await request(app).post("/cargas-quimicas").send(cargaValida(produtoId));
+      expect(res.body.dados.responsavelTecnico).toEqual(RESPONSAVEL);
+    });
+
+    it("bloqueia responsável técnico que não é id (400)", async () => {
+      const app = criarAppDeTeste();
+      const produtoId = await criarProduto(app);
+      const res = await request(app)
+        .post("/cargas-quimicas")
+        .send({ ...cargaValida(produtoId), responsavelTecnico: "Eng. Maria Souza" });
       expect(res.status).toBe(400);
+      expect(res.body.erro.detalhes[0].campo).toBe("responsavelTecnico");
+    });
+
+    it("retorna 404 quando o responsável técnico não existe", async () => {
+      const app = criarAppDeTeste();
+      const produtoId = await criarProduto(app);
+      const res = await request(app)
+        .post("/cargas-quimicas")
+        .send({ ...cargaValida(produtoId), responsavelTecnico: ID_INEXISTENTE });
+      expect(res.status).toBe(404);
+      expect(res.body.erro.codigo).toBe("RESPONSAVEL_TECNICO_NAO_ENCONTRADO");
     });
 
     it("não aceita status no registro: toda carga nasce registrada (400)", async () => {
