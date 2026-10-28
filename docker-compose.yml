@@ -5,6 +5,9 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      # Dentro do Docker o banco é o serviço "db", não localhost.
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy
