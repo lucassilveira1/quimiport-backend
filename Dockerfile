@@ -16,7 +16,9 @@ COPY package*.json ./
 RUN npm ci --production
 
 COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/src/infra/migrations ./src/infra/migrations
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+# Aplica as migrations pendentes e só então sobe a API.
+CMD ["sh", "-c", "node dist/infra/database/migrate.js && node dist/server.js"]
