@@ -2,17 +2,16 @@
 // Sobe a aplicação real (rotas + controllers + casos de uso + domínio),
 // trocando só o banco por repositórios em memória.
 import request from "supertest";
-import { randomUUID } from "crypto";
 import { createApp } from "../../src/api/app";
 import { ProdutoRepository } from "../../src/application/repositories/ProdutoRepository";
 import { CargaRepository } from "../../src/application/repositories/CargaRepository";
 import { ClasseRiscoRepository } from "../../src/application/repositories/ClasseRiscoRepository";
+import { GrupoCompatibilidadeRepository } from "../../src/application/repositories/GrupoCompatibilidadeRepository";
 import { ResponsavelTecnicoRepository } from "../../src/application/repositories/ResponsavelTecnicoRepository";
 import { ProdutoQuimico } from "../../src/domain/entities/ProdutoQuimico";
 import { ResponsavelTecnico } from "../../src/domain/entities/ResponsavelTecnico";
 import { CargaQuimica, ResponsavelDaCarga } from "../../src/domain/entities/CargaQuimica";
 import { ClasseRisco } from "../../src/domain/enums/ClasseRisco";
-import { DomainError } from "../../src/domain/errors/DomainError";
 import { Referencia } from "../../src/domain/value-objects/Referencia";
 
 /** Ids fixos das classes de risco "cadastradas" (no banco, vêm do seed da migration 0002). */
@@ -29,11 +28,16 @@ export const RESPONSAVEL: ResponsavelDaCarga = {
   nome: "Eng. Maria Souza",
 };
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Grupos de compatibilidade "cadastrados" (no banco, vêm do seed da migration 0003). */
+export const GRUPOS: Referencia[] = [
+  { id: "00000000-0000-4000-9000-000000000001", codigo: "G1", descricao: "Ácidos" },
+  { id: "00000000-0000-4000-9000-000000000002", codigo: "G2", descricao: "Bases (álcalis)" },
+  { id: "00000000-0000-4000-9000-000000000003", codigo: "G3", descricao: "Oxidantes" },
+  { id: "00000000-0000-4000-9000-000000000004", codigo: "G4", descricao: "Inflamáveis" },
+];
 
 export class ProdutoRepositoryEmMemoria implements ProdutoRepository {
   private produtos = new Map<string, ProdutoQuimico>();
-  private grupos: Referencia[] = [];
 
   async criar(produto: ProdutoQuimico) {
     this.produtos.set(produto.id, produto);
@@ -53,23 +57,6 @@ export class ProdutoRepositoryEmMemoria implements ProdutoRepository {
   }
   async ativar() {
     // a entidade já foi reativada pelo caso de uso
-  }
-  async obterGrupos(referencias: string[]) {
-    return referencias.map((referencia) => {
-      if (UUID_REGEX.test(referencia)) {
-        const grupo = this.grupos.find((g) => g.id === referencia);
-        if (!grupo) {
-          throw new DomainError("GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO", "Grupo de compatibilidade não encontrado.");
-        }
-        return grupo;
-      }
-      let grupo = this.grupos.find((g) => g.codigo === referencia);
-      if (!grupo) {
-        grupo = { id: randomUUID(), codigo: referencia };
-        this.grupos.push(grupo);
-      }
-      return grupo;
-    });
   }
 }
 
@@ -104,6 +91,16 @@ export class ClasseRiscoRepositoryEmMemoria implements ClasseRiscoRepository {
   }
 }
 
+/** Os 4 grupos de GRUPOS, buscados pelo id ou pelo código. */
+export class GrupoCompatibilidadeRepositoryEmMemoria implements GrupoCompatibilidadeRepository {
+  async listar() {
+    return GRUPOS;
+  }
+  async buscarPorReferencia(referencia: string) {
+    return GRUPOS.find((g) => g.id === referencia || g.codigo === referencia) ?? null;
+  }
+}
+
 /** Já começa com o RESPONSAVEL cadastrado, para os testes de carga. */
 export class ResponsavelTecnicoRepositoryEmMemoria implements ResponsavelTecnicoRepository {
   private responsaveis = new Map<string, ResponsavelTecnico>([
@@ -126,6 +123,7 @@ export function criarAppDeTeste() {
     produtoRepository: new ProdutoRepositoryEmMemoria(),
     cargaRepository: new CargaRepositoryEmMemoria(),
     classeRiscoRepository: new ClasseRiscoRepositoryEmMemoria(),
+    grupoCompatibilidadeRepository: new GrupoCompatibilidadeRepositoryEmMemoria(),
     responsavelTecnicoRepository: new ResponsavelTecnicoRepositoryEmMemoria(),
   });
 }

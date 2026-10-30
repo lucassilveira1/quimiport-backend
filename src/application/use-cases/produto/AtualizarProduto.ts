@@ -1,6 +1,7 @@
 // Caso de uso: atualizar produto químico. Responsável: Paula
 
 import { ClasseRiscoRepository } from "../../repositories/ClasseRiscoRepository";
+import { GrupoCompatibilidadeRepository } from "../../repositories/GrupoCompatibilidadeRepository";
 import { ProdutoRepository } from "../../repositories/ProdutoRepository";
 import { ProdutoQuimico } from "../../../domain/entities/ProdutoQuimico";
 import { DomainError } from "../../../domain/errors/DomainError";
@@ -17,7 +18,8 @@ export interface AtualizarProdutoInput {
 export class AtualizarProduto {
   constructor(
     private readonly produtoRepository: ProdutoRepository,
-    private readonly classeRiscoRepository: ClasseRiscoRepository
+    private readonly classeRiscoRepository: ClasseRiscoRepository,
+    private readonly grupoCompatibilidadeRepository: GrupoCompatibilidadeRepository
   ) {}
 
   async executar(id: string, dadosAtualizados: AtualizarProdutoInput): Promise<ProdutoQuimico> {
@@ -31,7 +33,7 @@ export class AtualizarProduto {
         ? await resolverClasseRisco(this.classeRiscoRepository, dadosAtualizados.classeRisco)
         : undefined;
     const gruposCompatibilidade = await resolverGrupos(
-      this.produtoRepository,
+      this.grupoCompatibilidadeRepository,
       dadosAtualizados.gruposCompatibilidade
     );
 

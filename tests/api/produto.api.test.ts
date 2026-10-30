@@ -1,7 +1,7 @@
 // Testes HTTP de produtos químicos. Responsável: Vitor
 import request from "supertest";
 import { ClasseRisco } from "../../src/domain/enums/ClasseRisco";
-import { CLASSE_RISCO_ID, cargaValida, criarAppDeTeste, criarProduto, produtoValido } from "./helpers";
+import { CLASSE_RISCO_ID, GRUPOS, cargaValida, criarAppDeTeste, criarProduto, produtoValido } from "./helpers";
 
 /** Só os códigos dos grupos devolvidos, para comparar mais fácil. */
 const codigos = (grupos: { codigo: string }[]) => grupos.map((g) => g.codigo);
@@ -239,18 +239,52 @@ describe("API - Produtos químicos", () => {
       expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual(["G1", "G2"]);
     });
 
-    it("devolve cada grupo como { id, codigo } e aceita o id de volta (201)", async () => {
+    it("devolve cada grupo como { id, codigo, descricao } e aceita o id de volta (201)", async () => {
       const app = criarAppDeTeste();
       const primeiro = await request(app)
         .post("/produtos-quimicos")
         .send({ ...produtoValido, gruposCompatibilidade: ["G1"] });
       const [grupo] = primeiro.body.dados.gruposCompatibilidade;
-      expect(grupo).toEqual({ id: expect.any(String), codigo: "G1" });
+      expect(grupo).toEqual({ id: GRUPOS[0].id, codigo: "G1", descricao: "Ácidos" });
 
       const segundo = await request(app)
         .post("/produtos-quimicos")
         .send({ ...produtoValido, gruposCompatibilidade: [grupo.id] });
       expect(segundo.body.dados.gruposCompatibilidade).toEqual([grupo]);
+    });
+
+    it("retorna 404 para código de grupo que não está cadastrado e não cria o produto", async () => {
+      const app = criarAppDeTeste();
+      const res = await request(app)
+        .post("/produtos-quimicos")
+        .send({ ...produtoValido, gruposCompatibilidade: ["G1", "G99"] });
+
+      expect(res.status).toBe(404);
+      expect(res.body.erro.codigo).toBe("GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO");
+      const lista = await request(app).get("/produtos-quimicos");
+      expect(lista.body.total).toBe(0);
+    });
+
+    it("retorna 404 para id de grupo que não existe", async () => {
+      const app = criarAppDeTeste();
+      const res = await request(app)
+        .post("/produtos-quimicos")
+        .send({ ...produtoValido, gruposCompatibilidade: [ID_INEXISTENTE] });
+      expect(res.status).toBe(404);
+    });
+
+    it("PUT com grupo que não está cadastrado retorna 404 e mantém os grupos", async () => {
+      const app = criarAppDeTeste();
+      const id = await criarProduto(app, { ...produtoValido, gruposCompatibilidade: ["G1"] });
+      const { numeroONU: _onu, ...editaveis } = produtoValido;
+
+      const res = await request(app)
+        .put(`/produtos-quimicos/${id}`)
+        .send({ ...editaveis, gruposCompatibilidade: ["G99"] });
+      expect(res.status).toBe(404);
+
+      const atual = await request(app).get(`/produtos-quimicos/${id}`);
+      expect(codigos(atual.body.dados.gruposCompatibilidade)).toEqual(["G1"]);
     });
 
     it("aceita um grupo só, como texto (201)", async () => {

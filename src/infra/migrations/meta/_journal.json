@@ -22,6 +22,13 @@
       "when": 1793034383451,
       "tag": "0002_seed_classes_risco",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793230979804,
+      "tag": "0003_seed_grupos_compatibilidade",
+      "breakpoints": true
     }
   ]
 }

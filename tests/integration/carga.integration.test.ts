@@ -7,6 +7,7 @@ import { createApp } from "../../src/api/app";
 import { ProdutoRepositoryImpl } from "../../src/infra/repositories/ProdutoRepositoryImpl";
 import { CargaRepositoryImpl } from "../../src/infra/repositories/CargaRepositoryImpl";
 import { ClasseRiscoRepositoryImpl } from "../../src/infra/repositories/ClasseRiscoRepositoryImpl";
+import { GrupoCompatibilidadeRepositoryImpl } from "../../src/infra/repositories/GrupoCompatibilidadeRepositoryImpl";
 import { ResponsavelTecnicoRepositoryImpl } from "../../src/infra/repositories/ResponsavelTecnicoRepositoryImpl";
 import { db } from "../../src/infra/database";
 import {
@@ -22,6 +23,7 @@ const app = createApp({
   produtoRepository: new ProdutoRepositoryImpl(),
   cargaRepository: new CargaRepositoryImpl(),
   classeRiscoRepository: new ClasseRiscoRepositoryImpl(),
+  grupoCompatibilidadeRepository: new GrupoCompatibilidadeRepositoryImpl(),
   responsavelTecnicoRepository: new ResponsavelTecnicoRepositoryImpl(),
 });
 

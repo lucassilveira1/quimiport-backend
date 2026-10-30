@@ -6,12 +6,14 @@ import { createApp } from "./api/app";
 import { ProdutoRepositoryImpl } from "./infra/repositories/ProdutoRepositoryImpl";
 import { CargaRepositoryImpl } from "./infra/repositories/CargaRepositoryImpl";
 import { ClasseRiscoRepositoryImpl } from "./infra/repositories/ClasseRiscoRepositoryImpl";
+import { GrupoCompatibilidadeRepositoryImpl } from "./infra/repositories/GrupoCompatibilidadeRepositoryImpl";
 import { ResponsavelTecnicoRepositoryImpl } from "./infra/repositories/ResponsavelTecnicoRepositoryImpl";
 
 const app = createApp({
   produtoRepository: new ProdutoRepositoryImpl(),
   cargaRepository: new CargaRepositoryImpl(),
   classeRiscoRepository: new ClasseRiscoRepositoryImpl(),
+  grupoCompatibilidadeRepository: new GrupoCompatibilidadeRepositoryImpl(),
   responsavelTecnicoRepository: new ResponsavelTecnicoRepositoryImpl(),
 });
 
