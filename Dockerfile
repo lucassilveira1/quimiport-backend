@@ -17,6 +17,7 @@ RUN npm ci --production
 
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/src/infra/migrations ./src/infra/migrations
+COPY --from=build /usr/src/app/docs/openapi.yaml ./docs/openapi.yaml
 
 EXPOSE 3000
 
