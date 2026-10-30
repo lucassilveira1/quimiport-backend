@@ -7,6 +7,7 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
     { "key": "classeRiscoId", "value": "" },
+    { "key": "grupoCompatibilidadeId", "value": "" },
     { "key": "responsavelTecnicoId", "value": "" },
     { "key": "produtoId", "value": "" },
     { "key": "cargaId", "value": "" }
@@ -38,6 +39,32 @@
             "method": "GET",
             "url": "{{baseUrl}}/classes-risco",
             "description": "Salva em {{classeRiscoId}} o id da classe_8_corrosivos."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Grupos de compatibilidade",
+      "item": [
+        {
+          "name": "Listar grupos de compatibilidade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const grupo = pm.response.json().dados?.find((g) => g.codigo === 'G1');",
+                  "if (grupo) pm.collectionVariables.set('grupoCompatibilidadeId', grupo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/grupos-compatibilidade",
+            "description": "Lista os grupos cadastrados (G1 a G4). Salva em {{grupoCompatibilidadeId}} o id do G1. O produto aceita o id ou o código; grupo não cadastrado retorna 404."
           }
         }
       ]

@@ -6,6 +6,7 @@ import { createApp } from "../../src/api/app";
 import { ProdutoRepositoryImpl } from "../../src/infra/repositories/ProdutoRepositoryImpl";
 import { CargaRepositoryImpl } from "../../src/infra/repositories/CargaRepositoryImpl";
 import { ClasseRiscoRepositoryImpl } from "../../src/infra/repositories/ClasseRiscoRepositoryImpl";
+import { GrupoCompatibilidadeRepositoryImpl } from "../../src/infra/repositories/GrupoCompatibilidadeRepositoryImpl";
 import { ResponsavelTecnicoRepositoryImpl } from "../../src/infra/repositories/ResponsavelTecnicoRepositoryImpl";
 import { db } from "../../src/infra/database";
 import {
@@ -17,15 +18,14 @@ import {
 
 const ID_INEXISTENTE = "6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f";
 
-// Códigos únicos por execução, para não misturar com dados que já estão no banco.
-const sufixo = Date.now().toString(36).toUpperCase();
-const GRUPO_A = `TA${sufixo}`;
-const GRUPO_B = `TB${sufixo}`;
+// Código único por execução, que com certeza não está cadastrado.
+const GRUPO_INEXISTENTE = `TX${Date.now().toString(36).toUpperCase()}`;
 
 const app = createApp({
   produtoRepository: new ProdutoRepositoryImpl(),
   cargaRepository: new CargaRepositoryImpl(),
   classeRiscoRepository: new ClasseRiscoRepositoryImpl(),
+  grupoCompatibilidadeRepository: new GrupoCompatibilidadeRepositoryImpl(),
   responsavelTecnicoRepository: new ResponsavelTecnicoRepositoryImpl(),
 });
 
@@ -72,40 +72,31 @@ afterAll(async () => {
       .where(inArray(produtoGrupoCompatibilidade.produtoId, produtosCriados));
     await db.delete(produtoQuimico).where(inArray(produtoQuimico.id, produtosCriados));
   }
-  await db
-    .delete(grupoCompatibilidade)
-    .where(inArray(grupoCompatibilidade.grupo, [GRUPO_A, GRUPO_B]));
   await db.$client.end();
 });
 
-describe("Integração - grupos de compatibilidade do produto", () => {
-  it("código que não existe cria o grupo na hora (201)", async () => {
-    expect(await buscarGrupoId(GRUPO_A)).toBeUndefined();
+describe("Integração - grupos de compatibilidade", () => {
+  it("GET /grupos-compatibilidade lista os grupos do seed (migration 0003)", async () => {
+    const res = await request(app).get("/grupos-compatibilidade");
 
-    const res = await criarProduto([GRUPO_A]);
-
-    expect(res.status).toBe(201);
-    expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual([GRUPO_A]);
-    expect(await buscarGrupoId(GRUPO_A)).toBeDefined();
+    expect(res.status).toBe(200);
+    expect(res.body.dados).toEqual(
+      expect.arrayContaining([
+        { id: expect.any(String), codigo: "G1", descricao: "Ácidos" },
+        { id: expect.any(String), codigo: "G2", descricao: "Bases (álcalis)" },
+        { id: expect.any(String), codigo: "G3", descricao: "Oxidantes" },
+        { id: expect.any(String), codigo: "G4", descricao: "Inflamáveis" },
+      ])
+    );
   });
 
-  it("código que já existe reaproveita o grupo, sem duplicar", async () => {
-    await criarProduto([GRUPO_A]);
+  it("aceita grupos cadastrados pelo código e pelo id, e o mesmo grupo repetido grava uma vez só", async () => {
+    const idG1 = await buscarGrupoId("G1");
 
-    const linhas = await db
-      .select()
-      .from(grupoCompatibilidade)
-      .where(eq(grupoCompatibilidade.grupo, GRUPO_A));
-    expect(linhas).toHaveLength(1);
-  });
-
-  it("aceita id e código misturados, e o mesmo grupo repetido grava uma vez só", async () => {
-    const idGrupoA = await buscarGrupoId(GRUPO_A);
-
-    const res = await criarProduto([idGrupoA, GRUPO_A, GRUPO_B]);
+    const res = await criarProduto([idG1, "G1", "G2"]);
 
     expect(res.status).toBe(201);
-    expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual([GRUPO_A, GRUPO_B]);
+    expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual(["G1", "G2"]);
 
     const vinculos = await db
       .select()
@@ -114,39 +105,49 @@ describe("Integração - grupos de compatibilidade do produto", () => {
     expect(vinculos).toHaveLength(2);
   });
 
-  it("id que não existe retorna 404 e não cria o produto", async () => {
-    const res = await criarProduto([ID_INEXISTENTE]);
+  it("código que não está cadastrado retorna 404, não cria o grupo e não cria o produto", async () => {
+    const produtosAntes = [...produtosCriados];
+
+    const res = await criarProduto(["G1", GRUPO_INEXISTENTE]);
 
     expect(res.status).toBe(404);
     expect(res.body.erro.codigo).toBe("GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO");
+    expect(await buscarGrupoId(GRUPO_INEXISTENTE)).toBeUndefined();
 
     const produtos = await db
       .select({ id: produtoQuimico.id })
       .from(produtoQuimico)
       .where(eq(produtoQuimico.nome, produtoBase.nome));
-    expect(produtos.map(({ id }) => id).sort()).toEqual([...produtosCriados].sort());
+    expect(produtos.map(({ id }) => id).sort()).toEqual(produtosAntes.sort());
+  });
+
+  it("id que não existe retorna 404", async () => {
+    const res = await criarProduto([ID_INEXISTENTE]);
+
+    expect(res.status).toBe(404);
+    expect(res.body.erro.codigo).toBe("GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO");
   });
 
   it("GET devolve os grupos gravados no banco", async () => {
-    const criado = await criarProduto([GRUPO_A, GRUPO_B]);
+    const criado = await criarProduto(["G3", "G4"]);
     const res = await request(app).get(`/produtos-quimicos/${criado.body.dados.id}`);
 
     expect(res.status).toBe(200);
-    expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual([GRUPO_A, GRUPO_B]);
+    expect(codigos(res.body.dados.gruposCompatibilidade)).toEqual(["G3", "G4"]);
   });
 
   it("PUT substitui os grupos; [] remove todos; sem o campo mantém", async () => {
-    const criado = await criarProduto([GRUPO_A, GRUPO_B]);
+    const criado = await criarProduto(["G1", "G2"]);
     const id = criado.body.dados.id;
     const { numeroONU: _onu, ...editaveis } = produtoBase;
 
     const substitui = await request(app)
       .put(`/produtos-quimicos/${id}`)
-      .send({ ...editaveis, gruposCompatibilidade: [GRUPO_B] });
-    expect(codigos(substitui.body.dados.gruposCompatibilidade)).toEqual([GRUPO_B]);
+      .send({ ...editaveis, gruposCompatibilidade: ["G2"] });
+    expect(codigos(substitui.body.dados.gruposCompatibilidade)).toEqual(["G2"]);
 
     const mantem = await request(app).put(`/produtos-quimicos/${id}`).send(editaveis);
-    expect(codigos(mantem.body.dados.gruposCompatibilidade)).toEqual([GRUPO_B]);
+    expect(codigos(mantem.body.dados.gruposCompatibilidade)).toEqual(["G2"]);
 
     const remove = await request(app)
       .put(`/produtos-quimicos/${id}`)

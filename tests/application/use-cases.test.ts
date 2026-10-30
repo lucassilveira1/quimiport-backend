@@ -12,6 +12,7 @@ import {
   CLASSE_RISCO_ID,
   CargaRepositoryEmMemoria,
   ClasseRiscoRepositoryEmMemoria,
+  GrupoCompatibilidadeRepositoryEmMemoria,
   ProdutoRepositoryEmMemoria,
   RESPONSAVEL,
   ResponsavelTecnicoRepositoryEmMemoria,
@@ -24,7 +25,7 @@ describe('Casos de uso - fluxo completo (sem HTTP, sem banco)', () => {
     const classeRiscoRepository = new ClasseRiscoRepositoryEmMemoria();
     const responsavelTecnicoRepository = new ResponsavelTecnicoRepositoryEmMemoria();
 
-    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository).executar({
+    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository, new GrupoCompatibilidadeRepositoryEmMemoria()).executar({
       nome: 'Ácido Sulfúrico',
       numeroONU: 'UN1830',
       classeRisco: CLASSE_RISCO_ID[ClasseRisco.CLASSE_8_CORROSIVOS],
@@ -53,7 +54,7 @@ describe('Casos de uso - fluxo completo (sem HTTP, sem banco)', () => {
     const classeRiscoRepository = new ClasseRiscoRepositoryEmMemoria();
     const responsavelTecnicoRepository = new ResponsavelTecnicoRepositoryEmMemoria();
 
-    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository).executar({
+    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository, new GrupoCompatibilidadeRepositoryEmMemoria()).executar({
       nome: 'Cloro Líquido',
       numeroONU: 'UN1017',
       classeRisco: CLASSE_RISCO_ID[ClasseRisco.CLASSE_2_GASES],
@@ -78,7 +79,7 @@ describe('Casos de uso - fluxo completo (sem HTTP, sem banco)', () => {
     const classeRiscoRepository = new ClasseRiscoRepositoryEmMemoria();
     const responsavelTecnicoRepository = new ResponsavelTecnicoRepositoryEmMemoria();
 
-    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository).executar({
+    const produto = await new CriarProduto(produtoRepository, classeRiscoRepository, new GrupoCompatibilidadeRepositoryEmMemoria()).executar({
       nome: 'Hidróxido de Sódio',
       numeroONU: 'UN1823',
       classeRisco: CLASSE_RISCO_ID[ClasseRisco.CLASSE_8_CORROSIVOS],

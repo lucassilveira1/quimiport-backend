@@ -12,9 +12,6 @@ import {
     produtoQuimico,
 } from "../database/schema";
 
-const UUID_REGEX =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Colunas de uma tabela de cadastro lidas como Referencia (descricao ainda pode ser null). */
 const colunasGrupo = {
     id: grupoCompatibilidade.id,
@@ -33,44 +30,6 @@ function paraReferencia(linha: {
     descricao: string | null;
 }): Referencia {
     return { ...linha, descricao: linha.descricao ?? undefined };
-}
-
-/**
- * Converte uma referência de grupo no grupo:
- * - id (UUID): o grupo precisa existir;
- * - código (ex.: "G1"): usa o grupo com esse código ou cria um novo.
- */
-async function obterGrupo(
-    ex: DbExecutor,
-    referencia: string,
-): Promise<Referencia> {
-    if (UUID_REGEX.test(referencia)) {
-        const [existente] = await ex
-            .select(colunasGrupo)
-            .from(grupoCompatibilidade)
-            .where(eq(grupoCompatibilidade.id, referencia))
-            .limit(1);
-        if (!existente) {
-            throw new DomainError(
-                "GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO",
-                `Grupo de compatibilidade não encontrado: ${referencia}.`,
-            );
-        }
-        return paraReferencia(existente);
-    }
-
-    const [existente] = await ex
-        .select(colunasGrupo)
-        .from(grupoCompatibilidade)
-        .where(eq(grupoCompatibilidade.grupo, referencia))
-        .limit(1);
-    if (existente) return paraReferencia(existente);
-
-    const [novo] = await ex
-        .insert(grupoCompatibilidade)
-        .values({ grupo: referencia })
-        .returning(colunasGrupo);
-    return paraReferencia(novo);
 }
 
 /** Substitui os grupos de compatibilidade vinculados ao produto. */
@@ -248,16 +207,5 @@ export class ProdutoRepositoryImpl implements ProdutoRepository {
             .update(produtoQuimico)
             .set({ status: StatusProduto.ATIVO, updatedAt: new Date() })
             .where(eq(produtoQuimico.id, id));
-    }
-
-    async obterGrupos(referencias: string[]): Promise<Referencia[]> {
-        // Transação: se um id não existir, os grupos criados por código são desfeitos.
-        return db.transaction(async (tx) => {
-            const grupos: Referencia[] = [];
-            for (const referencia of referencias) {
-                grupos.push(await obterGrupo(tx, referencia));
-            }
-            return grupos;
-        });
     }
 }

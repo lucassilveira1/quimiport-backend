@@ -1,6 +1,6 @@
 // Testes HTTP dos cadastros de apoio: classes de risco e responsáveis técnicos.
 import request from "supertest";
-import { CLASSE_RISCO_ID, RESPONSAVEL, cargaValida, criarAppDeTeste, criarProduto } from "./helpers";
+import { CLASSE_RISCO_ID, GRUPOS, RESPONSAVEL, cargaValida, criarAppDeTeste, criarProduto, produtoValido } from "./helpers";
 
 const ID_INEXISTENTE = "6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f";
 
@@ -35,6 +35,29 @@ describe("API - Classes de risco", () => {
       .send({ nome: "Cloro Líquido", numeroONU: "UN1017", classeRisco: gases.id });
     expect(res.status).toBe(201);
     expect(res.body.dados.classeRisco).toEqual(gases);
+  });
+});
+
+describe("API - Grupos de compatibilidade", () => {
+  it("GET /grupos-compatibilidade lista os grupos com { id, codigo, descricao } (200)", async () => {
+    const app = criarAppDeTeste();
+    const res = await request(app).get("/grupos-compatibilidade");
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(4);
+    expect(res.body.dados).toContainEqual({ id: GRUPOS[0].id, codigo: "G1", descricao: "Ácidos" });
+  });
+
+  it("o id listado é o que o cadastro de produto aceita (201)", async () => {
+    const app = criarAppDeTeste();
+    const { body } = await request(app).get("/grupos-compatibilidade");
+    const oxidantes = body.dados.find((g: { codigo: string }) => g.codigo === "G3");
+
+    const res = await request(app)
+      .post("/produtos-quimicos")
+      .send({ ...produtoValido, gruposCompatibilidade: [oxidantes.id] });
+    expect(res.status).toBe(201);
+    expect(res.body.dados.gruposCompatibilidade).toEqual([oxidantes]);
   });
 });
 
