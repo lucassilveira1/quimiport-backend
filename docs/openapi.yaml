@@ -1,7 +1,983 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
   title: QuimiPort API
-  description: API de gestão de cargas químicas portuárias.
   version: "0.1.0"
-paths: {}
-# TODO: documentar /produtos-quimicos e /cargas-quimicas (Lucas)
+  description: |
+    API de gestão de cargas químicas portuárias (Tech Challenge Fase 2 - Pós Tech Full Stack Development).
+
+    **Formato das respostas**
+    - Sucesso: os dados vêm em `dados`; listagens trazem também `total`.
+    - Erro: sempre `{ "erro": { "codigo", "mensagem", "detalhes?" } }`. O `codigo` é estável e
+      pode ser usado pelo cliente; a `mensagem` é para leitura humana.
+    - `detalhes` só aparece em `DADOS_INVALIDOS` e lista o problema de cada campo.
+
+    **Códigos HTTP**
+    | HTTP | Quando |
+    | --- | --- |
+    | 400 | Dados de entrada inválidos (formato, campo obrigatório, enum, UUID, JSON malformado, campo não permitido) |
+    | 404 | Recurso ou rota não existe |
+    | 409 | Conflito com o estado atual (produto já ativo/inativo) |
+    | 413 | Corpo maior que 100 KB |
+    | 422 | Regra de negócio violada (produto inativo, transição inválida, documentação incompleta) |
+    | 500 | Erro inesperado (detalhes só no log do servidor) |
+
+    **Ordem sugerida para testar:** listar classes de risco e grupos de compatibilidade,
+    cadastrar um responsável técnico, cadastrar um produto e registrar uma carga com os ids retornados.
+# A API não tem autenticação.
+security: []
+servers:
+  - url: http://localhost:3000
+    description: Local (Docker ou npm run dev)
+tags:
+  - name: Health
+    description: Verificação de disponibilidade.
+  - name: Classes de risco
+    description: Cadastro de referência (somente leitura), criado pela migration 0002.
+  - name: Grupos de compatibilidade
+    description: Cadastro de referência (somente leitura), criado pela migration 0003.
+  - name: Responsáveis técnicos
+    description: Profissionais que respondem tecnicamente pelas cargas.
+  - name: Produtos químicos
+    description: Cadastro de produtos químicos, com classe de risco e grupos de compatibilidade.
+  - name: Cargas químicas
+    description: |
+      Fluxo de status: `registrada → em_analise → em_inspecao → liberada → em_movimentacao → finalizada`.
+
+      | Status atual | Pode ir para |
+      | --- | --- |
+      | registrada | em_analise, cancelada |
+      | em_analise | em_inspecao, cancelada |
+      | em_inspecao | liberada, bloqueada, cancelada |
+      | liberada | em_movimentacao, cancelada |
+      | bloqueada | cancelada |
+      | em_movimentacao | finalizada |
+      | finalizada | (terminal) |
+      | cancelada | (terminal) |
+
+      Qualquer outra transição retorna `422 TRANSICAO_INVALIDA`. Liberar exige
+      `documentacaoObrigatoria: true` (senão `422 DOCUMENTACAO_INCOMPLETA`).
+
+paths:
+  /health:
+    get:
+      operationId: health
+      tags: [Health]
+      summary: Verifica se a API está no ar
+      responses:
+        "200":
+          description: API no ar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /classes-risco:
+    get:
+      operationId: listarClassesRisco
+      tags: [Classes de risco]
+      summary: Lista as classes de risco (classificação ONU)
+      description: Use o `id` retornado no campo `classeRisco` do produto.
+      responses:
+        "200":
+          description: Classes cadastradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/ClasseRisco" }
+                  total: { type: integer, example: 9 }
+              example:
+                dados:
+                  - { id: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a01, codigo: classe_2_gases }
+                  - { id: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a08, codigo: classe_8_corrosivos }
+                total: 9
+
+  /grupos-compatibilidade:
+    get:
+      operationId: listarGruposCompatibilidade
+      tags: [Grupos de compatibilidade]
+      summary: Lista os grupos de compatibilidade
+      description: |
+        Grupos cadastrados pelo seed: G1 Ácidos, G2 Bases (álcalis), G3 Oxidantes, G4 Inflamáveis.
+        O produto aceita o `id` ou o `codigo` do grupo; não existe endpoint para criar grupos.
+      responses:
+        "200":
+          description: Grupos cadastrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/GrupoCompatibilidade" }
+                  total: { type: integer, example: 4 }
+              example:
+                dados:
+                  - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e01, codigo: G1, descricao: Ácidos }
+                  - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e02, codigo: G2, descricao: Bases (álcalis) }
+                  - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e03, codigo: G3, descricao: Oxidantes }
+                  - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e04, codigo: G4, descricao: Inflamáveis }
+                total: 4
+
+  /responsaveis-tecnicos:
+    post:
+      operationId: criarResponsavelTecnico
+      tags: [Responsáveis técnicos]
+      summary: Cadastra um responsável técnico
+      description: |
+        **Regras:** só `nome` é obrigatório; todo responsável nasce `ativo` (o campo `status` não é aceito).
+        O `id` retornado é usado em `responsavelTecnico` ao registrar uma carga.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CriarResponsavelTecnico" }
+            example:
+              nome: Eng. Maria Souza
+              telefone: (13) 99999-0000
+              email: maria.souza@quimiport.com.br
+              cpf: 123.456.789-09
+              registroCrq: CRQ-IV 04123456
+      responses:
+        "201":
+          description: Responsável cadastrado
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/ResponsavelTecnico" }
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro:
+                  codigo: DADOS_INVALIDOS
+                  mensagem: Dados de entrada inválidos
+                  detalhes:
+                    - { local: body, campo: nome, mensagem: nome é obrigatório }
+                    - { local: body, campo: email, mensagem: email deve ser um e-mail válido }
+    get:
+      operationId: listarResponsaveisTecnicos
+      tags: [Responsáveis técnicos]
+      summary: Lista os responsáveis técnicos
+      responses:
+        "200":
+          description: Responsáveis cadastrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/ResponsavelTecnico" }
+                  total: { type: integer, example: 1 }
+
+  /responsaveis-tecnicos/{id}:
+    get:
+      operationId: buscarResponsavelTecnico
+      tags: [Responsáveis técnicos]
+      summary: Busca um responsável técnico pelo id
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Responsável encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/ResponsavelTecnico" }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404":
+          description: Responsável não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro: { codigo: RESPONSAVEL_TECNICO_NAO_ENCONTRADO, mensagem: Responsável técnico não encontrado. }
+
+  /produtos-quimicos:
+    post:
+      operationId: criarProduto
+      tags: [Produtos químicos]
+      summary: Cadastra um produto químico
+      description: |
+        **Regras aplicadas**
+        - `nome`, `numeroONU` e `classeRisco` são obrigatórios.
+        - `classeRisco` é o id de uma classe listada em `GET /classes-risco`; se não existir → `404 CLASSE_RISCO_NAO_ENCONTRADA`.
+        - `gruposCompatibilidade` aceita ids ou códigos (`"G1"`) de grupos cadastrados; um texto só também é aceito.
+          Grupo repetido é gravado uma vez. Grupo não cadastrado → `404 GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO` e o produto não é gravado.
+        - `status` é opcional (`ativo` por padrão).
+        - Campos fora do contrato são recusados (`400 DADOS_INVALIDOS`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CriarProduto" }
+            examples:
+              comCodigos:
+                summary: Grupos pelo código
+                value:
+                  nome: Ácido Sulfúrico
+                  descricao: Ácido forte corrosivo
+                  numeroONU: UN1830
+                  classeRisco: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a08
+                  gruposCompatibilidade: [G1, G2]
+              semGrupos:
+                summary: Só os campos obrigatórios
+                value:
+                  nome: Cloro Líquido
+                  numeroONU: UN1017
+                  classeRisco: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a01
+      responses:
+        "201":
+          description: Produto cadastrado
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/Produto" }
+              examples:
+                produto: { $ref: "#/components/examples/Produto" }
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              examples:
+                semNome:
+                  summary: Sem nome
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: nome, mensagem: nome é obrigatório }
+                semClasseRisco:
+                  summary: Sem classe de risco
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: classeRisco, mensagem: classeRisco é obrigatório }
+                statusInvalido:
+                  summary: Status inválido
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: status, mensagem: "status inválido. Valores aceitos: ativo, inativo" }
+                campoExtra:
+                  summary: Campo não permitido
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: cor, mensagem: O corpo da requisição contém campos não permitidos }
+                jsonInvalido:
+                  summary: JSON malformado
+                  value:
+                    erro: { codigo: JSON_INVALIDO, mensagem: O corpo da requisição não é um JSON válido. }
+        "404":
+          description: Classe de risco ou grupo de compatibilidade não cadastrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              examples:
+                classeRisco:
+                  summary: Classe de risco inexistente
+                  value:
+                    erro:
+                      codigo: CLASSE_RISCO_NAO_ENCONTRADA
+                      mensagem: "Classe de risco não encontrada: 6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f."
+                grupo:
+                  summary: Grupo de compatibilidade inexistente
+                  value:
+                    erro:
+                      codigo: GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO
+                      mensagem: "Grupo de compatibilidade não encontrado: G9."
+    get:
+      operationId: listarProdutos
+      tags: [Produtos químicos]
+      summary: Lista os produtos químicos
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtra pelo status do produto.
+          schema: { $ref: "#/components/schemas/StatusProduto" }
+      responses:
+        "200":
+          description: Produtos encontrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/Produto" }
+                  total: { type: integer, example: 1 }
+        "400":
+          description: Filtro inválido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro:
+                  codigo: DADOS_INVALIDOS
+                  mensagem: Dados de entrada inválidos
+                  detalhes:
+                    - { local: query, campo: status, mensagem: "status inválido. Valores aceitos: ativo, inativo" }
+
+  /produtos-quimicos/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: buscarProduto
+      tags: [Produtos químicos]
+      summary: Busca um produto pelo id
+      responses:
+        "200":
+          description: Produto encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/Produto" }
+              examples:
+                produto: { $ref: "#/components/examples/Produto" }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/ProdutoNaoEncontrado" }
+    put:
+      operationId: atualizarProduto
+      tags: [Produtos químicos]
+      summary: Atualiza os dados editáveis do produto
+      description: |
+        **Regras aplicadas**
+        - Envia de novo `nome` e `classeRisco` (obrigatórios) e, se quiser, `descricao` e `gruposCompatibilidade`.
+        - `numeroONU` e `status` não mudam aqui (status muda por `/inativar` e `/ativar`); enviá-los dá `400`.
+        - `gruposCompatibilidade` substitui a lista atual; `[]` remove todos; sem o campo, os grupos atuais são mantidos.
+        - Grupo não cadastrado → `404 GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO` e nada é alterado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AtualizarProduto" }
+            example:
+              nome: Ácido Sulfúrico 98%
+              descricao: Concentrado
+              classeRisco: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a08
+              gruposCompatibilidade: [G1]
+      responses:
+        "200":
+          description: Produto atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/Produto" }
+        "400": { $ref: "#/components/responses/DadosInvalidos" }
+        "404":
+          description: Produto, classe de risco ou grupo de compatibilidade não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro: { codigo: PRODUTO_NAO_ENCONTRADO, mensagem: Produto químico não encontrado. }
+
+  /produtos-quimicos/{id}/inativar:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: inativarProduto
+      tags: [Produtos químicos]
+      summary: Inativa o produto
+      description: Produto inativo não pode ser usado em novas cargas (`422 PRODUTO_INATIVO` no registro da carga).
+      responses:
+        "204": { description: Produto inativado (sem corpo) }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/ProdutoNaoEncontrado" }
+        "409":
+          description: Produto já está inativo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro: { codigo: PRODUTO_JA_INATIVO, mensagem: Produto químico já está inativo. }
+
+  /produtos-quimicos/{id}/ativar:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: ativarProduto
+      tags: [Produtos químicos]
+      summary: Reativa um produto inativo
+      responses:
+        "204": { description: Produto reativado (sem corpo) }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/ProdutoNaoEncontrado" }
+        "409":
+          description: Produto já está ativo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro: { codigo: PRODUTO_JA_ATIVO, mensagem: Produto químico já está ativo. }
+
+  /cargas-quimicas:
+    post:
+      operationId: registrarCarga
+      tags: [Cargas químicas]
+      summary: Registra uma carga química
+      description: |
+        **Regras aplicadas**
+        - Toda carga nasce com status `registrada` (o campo `status` não é aceito).
+        - Precisa de ao menos um produto (`produtos`, ids). Produto inexistente → `404 PRODUTO_NAO_ENCONTRADO`;
+          produto inativo → `422 PRODUTO_INATIVO`.
+        - `quantidade` deve ser maior que zero (`400`).
+        - `responsavelTecnico` é obrigatório e precisa existir (`404 RESPONSAVEL_TECNICO_NAO_ENCONTRADO`).
+        - `documentacaoObrigatoria` indica se a documentação está completa (padrão `false`); sem ela a carga não pode ser liberada.
+        - `dataEntrada` é opcional (ISO 8601); se omitida, usa o momento do registro.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistrarCarga" }
+            example:
+              codigoCarga: SSZ-2026-0001
+              produtos: [5c1d8e2a-3b4f-4a6c-9d7e-8f9a0b1c2d3e]
+              quantidade: 1200
+              unidadeMedida: kg
+              origem: Terminal Alemoa
+              destino: Cubatão
+              responsavelTecnico: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+              documentacaoObrigatoria: true
+      responses:
+        "201":
+          description: Carga registrada
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/Carga" }
+              examples:
+                carga: { $ref: "#/components/examples/Carga" }
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              examples:
+                quantidadeZero:
+                  summary: Quantidade menor ou igual a zero
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: quantidade, mensagem: quantidade deve ser maior que zero }
+                semProduto:
+                  summary: Sem produto
+                  value:
+                    erro:
+                      codigo: DADOS_INVALIDOS
+                      mensagem: Dados de entrada inválidos
+                      detalhes:
+                        - { local: body, campo: produtos, mensagem: a carga deve ter ao menos um produto }
+        "404":
+          description: Produto ou responsável técnico não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              examples:
+                produto:
+                  summary: Produto inexistente
+                  value:
+                    erro:
+                      codigo: PRODUTO_NAO_ENCONTRADO
+                      mensagem: "Produto químico não encontrado: 6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f."
+                responsavel:
+                  summary: Responsável inexistente
+                  value:
+                    erro:
+                      codigo: RESPONSAVEL_TECNICO_NAO_ENCONTRADO
+                      mensagem: "Responsável técnico não encontrado: 6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f."
+        "422":
+          description: Produto inativo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example:
+                erro:
+                  codigo: PRODUTO_INATIVO
+                  mensagem: "Não é possível registrar carga com produto químico inativo: Ácido Sulfúrico."
+    get:
+      operationId: listarCargas
+      tags: [Cargas químicas]
+      summary: Lista as cargas químicas
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtra pelo status da carga.
+          schema: { $ref: "#/components/schemas/StatusCarga" }
+        - name: produtoQuimicoId
+          in: query
+          required: false
+          description: Filtra as cargas que contêm este produto.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Cargas encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/Carga" }
+                  total: { type: integer, example: 1 }
+        "400": { $ref: "#/components/responses/DadosInvalidos" }
+
+  /cargas-quimicas/{id}:
+    get:
+      operationId: buscarCarga
+      tags: [Cargas químicas]
+      summary: Busca uma carga pelo id
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Carga encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dados: { $ref: "#/components/schemas/Carga" }
+              examples:
+                carga: { $ref: "#/components/examples/Carga" }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/CargaNaoEncontrada" }
+
+  /cargas-quimicas/{id}/status:
+    patch:
+      operationId: atualizarStatusCarga
+      tags: [Cargas químicas]
+      summary: Atualiza o status da carga
+      description: |
+        Aceita só as transições da tabela da seção **Cargas químicas**. Ir para `liberada` exige
+        `documentacaoObrigatoria: true`.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              additionalProperties: false
+              properties:
+                status: { $ref: "#/components/schemas/StatusCarga" }
+            example: { status: em_analise }
+      responses:
+        "200": { $ref: "#/components/responses/CargaAtualizada" }
+        "400": { $ref: "#/components/responses/DadosInvalidos" }
+        "404": { $ref: "#/components/responses/CargaNaoEncontrada" }
+        "422": { $ref: "#/components/responses/TransicaoNegada" }
+
+  /cargas-quimicas/{id}/liberar:
+    patch:
+      operationId: liberarCarga
+      tags: [Cargas químicas]
+      summary: Libera a carga
+      description: "Só a partir de `em_inspecao` e com `documentacaoObrigatoria: true`."
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { $ref: "#/components/responses/CargaAtualizada" }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/CargaNaoEncontrada" }
+        "422": { $ref: "#/components/responses/TransicaoNegada" }
+
+  /cargas-quimicas/{id}/bloquear:
+    patch:
+      operationId: bloquearCarga
+      tags: [Cargas químicas]
+      summary: Bloqueia a carga
+      description: |
+        Só a partir de `em_inspecao`. Carga bloqueada não pode ser movimentada; o único caminho
+        a partir dela é `cancelada`. O `motivo` (opcional) é gravado em `motivoBloqueio`.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                motivo: { type: string, maxLength: 500 }
+            example: { motivo: Lacre violado }
+      responses:
+        "200": { $ref: "#/components/responses/CargaAtualizada" }
+        "400": { $ref: "#/components/responses/DadosInvalidos" }
+        "404": { $ref: "#/components/responses/CargaNaoEncontrada" }
+        "422": { $ref: "#/components/responses/TransicaoNegada" }
+
+  /cargas-quimicas/{id}/cancelar:
+    patch:
+      operationId: cancelarCarga
+      tags: [Cargas químicas]
+      summary: Cancela a carga
+      description: Permitido a partir de `registrada`, `em_analise`, `em_inspecao`, `liberada` e `bloqueada`. `cancelada` é terminal.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { $ref: "#/components/responses/CargaAtualizada" }
+        "400": { $ref: "#/components/responses/IdInvalido" }
+        "404": { $ref: "#/components/responses/CargaNaoEncontrada" }
+        "422": { $ref: "#/components/responses/TransicaoNegada" }
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Id (UUID) do recurso.
+      schema: { type: string, format: uuid }
+
+  headers:
+    Location:
+      description: Caminho do recurso criado.
+      schema: { type: string, example: /produtos-quimicos/5c1d8e2a-3b4f-4a6c-9d7e-8f9a0b1c2d3e }
+
+  responses:
+    DadosInvalidos:
+      description: Dados de entrada inválidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example:
+            erro:
+              codigo: DADOS_INVALIDOS
+              mensagem: Dados de entrada inválidos
+              detalhes:
+                - { local: body, campo: nome, mensagem: nome é obrigatório }
+    IdInvalido:
+      description: Id não é um UUID
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example:
+            erro:
+              codigo: DADOS_INVALIDOS
+              mensagem: Dados de entrada inválidos
+              detalhes:
+                - { local: params, campo: id, mensagem: id deve ser um UUID válido }
+    ProdutoNaoEncontrado:
+      description: Produto não encontrado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example:
+            erro: { codigo: PRODUTO_NAO_ENCONTRADO, mensagem: Produto químico não encontrado. }
+    CargaNaoEncontrada:
+      description: Carga não encontrada
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example:
+            erro: { codigo: CARGA_NAO_ENCONTRADA, mensagem: Carga química não encontrada. }
+    CargaAtualizada:
+      description: Carga com o novo status
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              dados: { $ref: "#/components/schemas/Carga" }
+    TransicaoNegada:
+      description: Transição de status não permitida ou documentação incompleta
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          examples:
+            transicaoInvalida:
+              summary: "Transição não permitida (ex.: movimentar carga bloqueada)"
+              value:
+                erro:
+                  codigo: TRANSICAO_INVALIDA
+                  mensagem: 'Não é possível transicionar a carga de "bloqueada" para "em_movimentacao".'
+            documentacaoIncompleta:
+              summary: Liberar sem documentação obrigatória
+              value:
+                erro:
+                  codigo: DOCUMENTACAO_INCOMPLETA
+                  mensagem: Carga não pode ser liberada sem toda a documentação obrigatória.
+
+  examples:
+    Produto:
+      summary: Produto com grupos de compatibilidade
+      value:
+        dados:
+          id: 5c1d8e2a-3b4f-4a6c-9d7e-8f9a0b1c2d3e
+          nome: Ácido Sulfúrico
+          descricao: Ácido forte corrosivo
+          numeroONU: UN1830
+          classeRisco: { id: 3f0c1a52-7d44-4c1e-9b1a-1c2d3e4f5a08, codigo: classe_8_corrosivos }
+          gruposCompatibilidade:
+            - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e01, codigo: G1, descricao: Ácidos }
+            - { id: 9b2e4c10-1a2b-4c3d-8e4f-5a6b7c8d9e02, codigo: G2, descricao: Bases (álcalis) }
+          status: ativo
+          createdAt: "2026-10-30T12:00:00.000Z"
+          updatedAt: "2026-10-30T12:00:00.000Z"
+    Carga:
+      summary: Carga recém-registrada
+      value:
+        dados:
+          id: 1e2d3c4b-5a6f-4e7d-8c9b-0a1b2c3d4e5f
+          codigoCarga: SSZ-2026-0001
+          quantidade: 1200
+          unidadeMedida: kg
+          origem: Terminal Alemoa
+          destino: Cubatão
+          responsavelTecnico: { id: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d, nome: Eng. Maria Souza }
+          documentacaoObrigatoria: true
+          status: registrada
+          produtos:
+            - id: 5c1d8e2a-3b4f-4a6c-9d7e-8f9a0b1c2d3e
+              nome: Ácido Sulfúrico
+              numeroONU: UN1830
+              classeRisco: classe_8_corrosivos
+          dataEntrada: "2026-10-30T12:00:00.000Z"
+          createdAt: "2026-10-30T12:00:00.000Z"
+          updatedAt: "2026-10-30T12:00:00.000Z"
+
+  schemas:
+    Erro:
+      type: object
+      required: [erro]
+      properties:
+        erro:
+          type: object
+          required: [codigo, mensagem]
+          properties:
+            codigo:
+              type: string
+              description: Código estável do erro.
+              enum:
+                - DADOS_INVALIDOS
+                - JSON_INVALIDO
+                - NOME_OBRIGATORIO
+                - CLASSE_RISCO_INVALIDA
+                - STATUS_INVALIDO
+                - PRODUTO_OBRIGATORIO
+                - QUANTIDADE_INVALIDA
+                - RESPONSAVEL_TECNICO_OBRIGATORIO
+                - PRODUTO_NAO_ENCONTRADO
+                - CARGA_NAO_ENCONTRADA
+                - CLASSE_RISCO_NAO_ENCONTRADA
+                - GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO
+                - RESPONSAVEL_TECNICO_NAO_ENCONTRADO
+                - ROTA_NAO_ENCONTRADA
+                - PRODUTO_JA_INATIVO
+                - PRODUTO_JA_ATIVO
+                - PAYLOAD_MUITO_GRANDE
+                - PRODUTO_INATIVO
+                - TRANSICAO_INVALIDA
+                - DOCUMENTACAO_INCOMPLETA
+                - ERRO_INTERNO
+            mensagem: { type: string }
+            detalhes:
+              type: array
+              description: Só em DADOS_INVALIDOS. Um item por problema encontrado.
+              items:
+                type: object
+                properties:
+                  local: { type: string, enum: [params, query, body] }
+                  campo: { type: string, nullable: true }
+                  mensagem: { type: string }
+
+    StatusProduto:
+      type: string
+      enum: [ativo, inativo]
+
+    StatusCarga:
+      type: string
+      enum: [registrada, em_analise, em_inspecao, liberada, bloqueada, em_movimentacao, finalizada, cancelada]
+
+    UnidadeMedida:
+      type: string
+      enum: [kg, tonelada, litro, metro_cubico]
+
+    ClasseRisco:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo:
+          type: string
+          enum:
+            - classe_1_explosivos
+            - classe_2_gases
+            - classe_3_liquidos_inflamaveis
+            - classe_4_solidos_inflamaveis
+            - classe_5_substancias_oxidantes
+            - classe_6_substancias_toxicas
+            - classe_7_material_radioativo
+            - classe_8_corrosivos
+            - classe_9_diversos
+
+    GrupoCompatibilidade:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: G1 }
+        descricao: { type: string, example: Ácidos }
+
+    CriarResponsavelTecnico:
+      type: object
+      required: [nome]
+      additionalProperties: false
+      properties:
+        nome: { type: string, maxLength: 150 }
+        telefone: { type: string, maxLength: 20 }
+        email: { type: string, format: email, maxLength: 150 }
+        cpf: { type: string, pattern: '^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$', example: 123.456.789-09 }
+        registroCrq: { type: string, maxLength: 30 }
+
+    ResponsavelTecnico:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        telefone: { type: string }
+        email: { type: string }
+        cpf: { type: string }
+        registroCrq: { type: string }
+        status: { type: string, enum: [ativo, inativo] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    GruposCompatibilidadeEntrada:
+      description: Lista de ids ou códigos de grupos cadastrados. Um texto só também é aceito.
+      oneOf:
+        - type: array
+          items: { type: string, maxLength: 36 }
+        - type: string
+          maxLength: 36
+      example: [G1, G2]
+
+    CriarProduto:
+      type: object
+      required: [nome, numeroONU, classeRisco]
+      additionalProperties: false
+      properties:
+        nome: { type: string, maxLength: 150 }
+        descricao: { type: string, maxLength: 1000 }
+        numeroONU: { type: string, maxLength: 20, example: UN1830 }
+        classeRisco: { type: string, format: uuid, description: Id de uma classe de GET /classes-risco. }
+        gruposCompatibilidade: { $ref: "#/components/schemas/GruposCompatibilidadeEntrada" }
+        status: { $ref: "#/components/schemas/StatusProduto" }
+
+    AtualizarProduto:
+      type: object
+      required: [nome, classeRisco]
+      additionalProperties: false
+      properties:
+        nome: { type: string, maxLength: 150 }
+        descricao: { type: string, maxLength: 1000 }
+        classeRisco: { type: string, format: uuid }
+        gruposCompatibilidade: { $ref: "#/components/schemas/GruposCompatibilidadeEntrada" }
+
+    Produto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        descricao: { type: string }
+        numeroONU: { type: string }
+        classeRisco: { $ref: "#/components/schemas/ClasseRisco" }
+        gruposCompatibilidade:
+          type: array
+          items: { $ref: "#/components/schemas/GrupoCompatibilidade" }
+        status: { $ref: "#/components/schemas/StatusProduto" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RegistrarCarga:
+      type: object
+      required: [codigoCarga, produtos, quantidade, unidadeMedida, origem, destino, responsavelTecnico]
+      additionalProperties: false
+      properties:
+        codigoCarga: { type: string, maxLength: 50 }
+        produtos:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        quantidade: { type: number, exclusiveMinimum: true, minimum: 0 }
+        unidadeMedida: { $ref: "#/components/schemas/UnidadeMedida" }
+        origem: { type: string, maxLength: 150 }
+        destino: { type: string, maxLength: 150 }
+        responsavelTecnico: { type: string, format: uuid, description: Id de um responsável técnico cadastrado. }
+        documentacaoObrigatoria: { type: boolean, default: false }
+        dataEntrada: { type: string, format: date-time }
+
+    Carga:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigoCarga: { type: string }
+        quantidade: { type: number }
+        unidadeMedida: { $ref: "#/components/schemas/UnidadeMedida" }
+        origem: { type: string }
+        destino: { type: string }
+        responsavelTecnico:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            nome: { type: string }
+        documentacaoObrigatoria: { type: boolean }
+        status: { $ref: "#/components/schemas/StatusCarga" }
+        motivoBloqueio: { type: string, description: Só aparece em cargas bloqueadas com motivo. }
+        produtos:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              nome: { type: string }
+              numeroONU: { type: string }
+              classeRisco: { type: string, example: classe_8_corrosivos }
+        dataEntrada: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }

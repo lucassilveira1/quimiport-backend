@@ -41,7 +41,7 @@ O QuimiPort é uma API REST que centraliza esse controle. Ela permite:
 - registrar e consultar **cargas químicas** com um ou mais produtos;
 - controlar o **status da carga** por uma máquina de estados que impede transições inválidas;
 - **bloquear**, **liberar** e **cancelar** cargas, aplicando as regras de negócio;
-- consultar as **classes de risco** e cadastrar **responsáveis técnicos**.
+- consultar as **classes de risco** e os **grupos de compatibilidade**, e cadastrar **responsáveis técnicos**.
 
 Todas as regras ficam na camada de domínio, então valem igualmente para qualquer
 endpoint que altere os dados.
@@ -55,6 +55,7 @@ endpoint que altere os dados.
 | Zod | Validação dos dados de entrada (DTOs) |
 | PostgreSQL 16 | Banco de dados |
 | Drizzle ORM / Drizzle Kit | Acesso ao banco e migrations |
+| OpenAPI 3.0 + Swagger UI | Documentação da API, servida em `/docs` |
 | Jest + Supertest | Testes unitários, de API e de integração |
 | Docker / Docker Compose | Containerização da API e do banco |
 | GitHub Actions | Pipeline de CI |
@@ -81,7 +82,8 @@ docker compose up --build
 
 O compose sobe dois serviços: `api` (porta 3000) e `db` (PostgreSQL, porta 5432).
 A API só inicia depois que o healthcheck do banco passa. Ao iniciar, o container da API
-aplica as migrations pendentes (criam as tabelas e cadastram as 9 classes de risco da ONU)
+aplica as migrations pendentes (criam as tabelas e cadastram as 9 classes de risco da ONU
+e os 4 grupos de compatibilidade)
 e só então sobe o servidor. Migrations já aplicadas não rodam de novo.
 
 Teste se a API está no ar:
@@ -147,7 +149,7 @@ Os testes estão organizados em:
 | `tests/domain` | Entidades e regras de negócio (`ProdutoQuimico`, `CargaQuimica`, máquina de estados) |
 | `tests/application` | Casos de uso encadeados, com repositórios em memória |
 | `tests/api` | Endpoints HTTP com Supertest: status, validações, formato das respostas e erros |
-| `tests/integration` | Endpoints contra o PostgreSQL real: gravação de vínculos, grupos de compatibilidade |
+| `tests/integration` | Endpoints contra o PostgreSQL real: gravação de vínculos, seed e uso dos grupos de compatibilidade |
 
 Os cenários exigidos pelo desafio estão todos cobertos: cadastro de produto, bloqueio sem
 nome e sem classe de risco, registro de carga, bloqueio com produto inativo e com quantidade
@@ -156,11 +158,21 @@ transições permitidas e proibidas, cancelamento e tentativa de movimentar carg
 
 ## Documentação da API
 
-A documentação da API está na collection do Postman em
-[`docs/quimiport.postman_collection.json`](docs/quimiport.postman_collection.json).
-Importe o arquivo no Postman (**Import → File**) e ajuste a variável `baseUrl`
-(padrão: `http://localhost:3000`). A collection guarda os ids criados em variáveis,
-então dá para executar as requisições em sequência.
+A documentação fica em dois lugares:
+
+- **Swagger UI:** com a API no ar, acesse **http://localhost:3000/docs**. A página mostra
+  cada endpoint com parâmetros, exemplos de request e response, códigos de erro e as regras
+  de negócio aplicadas, e permite testar as rotas pelo navegador (**Try it out**). O contrato
+  OpenAPI 3.0 está em [`docs/openapi.yaml`](docs/openapi.yaml) e também em
+  `http://localhost:3000/docs/openapi.json`, para importar em outras ferramentas.
+- **Postman:** a collection em
+  [`docs/quimiport.postman_collection.json`](docs/quimiport.postman_collection.json) traz as
+  requisições prontas. Importe o arquivo no Postman (**Import → File**) e ajuste a variável
+  `baseUrl` (padrão: `http://localhost:3000`). A collection guarda os ids criados em
+  variáveis, então dá para executar as requisições em sequência.
+
+O `docs/openapi.yaml` é a referência do contrato. Um teste (`tests/api/docs.api.test.ts`)
+confere que todos os endpoints da API estão documentados nele.
 
 ### Formato das respostas
 
@@ -230,7 +242,7 @@ Content-Type: application/json
     "descricao": "Ácido forte corrosivo",
     "numeroONU": "UN1830",
     "classeRisco": { "id": "4a3d93f8-...", "codigo": "classe_8_corrosivos", "descricao": "Substâncias corrosivas" },
-    "gruposCompatibilidade": [{ "id": "9a11687f-...", "codigo": "G1" }],
+    "gruposCompatibilidade": [{ "id": "9a11687f-...", "codigo": "G1", "descricao": "Ácidos" }],
     "status": "ativo",
     "createdAt": "2026-10-16T00:20:57.597Z",
     "updatedAt": "2026-10-16T00:20:57.597Z"
@@ -239,9 +251,10 @@ Content-Type: application/json
 ```
 
 - `classeRisco` recebe o **id** de uma classe cadastrada (veja `GET /classes-risco`).
-- `gruposCompatibilidade` aceita códigos (`"G1"`) ou ids. Um código que ainda não existe
-  cria o grupo; um id que não existe retorna 404. No `PUT`, a lista enviada substitui a atual,
-  `[]` remove todos e omitir o campo mantém os grupos como estão.
+- `gruposCompatibilidade` aceita o id ou o código (`"G1"`) de grupos cadastrados
+  (veja `GET /grupos-compatibilidade`). Um grupo que não está cadastrado retorna
+  `404 GRUPO_COMPATIBILIDADE_NAO_ENCONTRADO` e o produto não é gravado. No `PUT`, a lista
+  enviada substitui a atual, `[]` remove todos e omitir o campo mantém os grupos como estão.
 - O status muda só pelos endpoints `/inativar` e `/ativar`, não pelo `PUT`.
 
 ### Cargas químicas
@@ -307,10 +320,12 @@ Content-Type: application/json
 | Método | Rota | Descrição | Sucesso |
 | --- | --- | --- | --- |
 | GET | `/classes-risco` | Lista as 9 classes de risco da ONU (somente leitura) | 200 |
+| GET | `/grupos-compatibilidade` | Lista os 4 grupos de compatibilidade cadastrados (somente leitura) | 200 |
 | POST | `/responsaveis-tecnicos` | Cadastra um responsável técnico (só `nome` é obrigatório; aceita `telefone`, `email`, `cpf`, `registroCrq`) | 201 |
 | GET | `/responsaveis-tecnicos` | Lista os responsáveis técnicos | 200 |
 | GET | `/responsaveis-tecnicos/:id` | Busca um responsável pelo id | 200 |
 | GET | `/health` | Verifica se a API está no ar | 200 |
+| GET | `/docs` | Documentação interativa (Swagger UI); o contrato em JSON fica em `/docs/openapi.json` | 200 |
 
 ## Regras de negócio
 
@@ -395,6 +410,15 @@ Todas as tabelas têm também `created_at` e `updated_at`.
 - **Produtos químicos** ficam em `produto_quimico`. A classe de risco é uma chave
   estrangeira para `classe_risco` (cadastrada pela migration `0002`), e os grupos de
   compatibilidade ficam na tabela de ligação `produto_grupo_compatibilidade` (N:N).
+  Os grupos aceitos são os de `grupo_compatibilidade`, cadastrados pela migration `0003`:
+
+  | Código | Descrição |
+  | --- | --- |
+  | `G1` | Ácidos |
+  | `G2` | Bases (álcalis) |
+  | `G3` | Oxidantes |
+  | `G4` | Inflamáveis |
+
   A inativação é lógica: o produto nunca é apagado, só muda o `status`.
 - **Cargas químicas** ficam em `carga_quimica`, com chave estrangeira para o
   `responsavel_tecnico`. O cancelamento também é lógico, pelo `status`.
@@ -429,7 +453,7 @@ src/
   api/             -> rotas, controllers, DTOs (Zod), middlewares e montagem do app
   config/          -> variáveis de ambiente e logger
 tests/             -> testes de domínio, casos de uso, API e integração
-docs/              -> collection do Postman
+docs/              -> contrato OpenAPI (servido em /docs) e collection do Postman
 ```
 
 - **Domínio** (`src/domain`): as entidades `ProdutoQuimico` e `CargaQuimica` validam as
